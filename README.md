@@ -51,8 +51,8 @@ knobs do the same job on every page.
 
 ## Presets
 
-Factory: 1 INDUSTRIAL DRONE · 2 METALLIC MACHINE · 3 BROKEN OSCILLATOR · 4 FEEDBACK STORM · 5 DARK AMBIENT ·
-6 DIGITAL COLLAPSE · 7 NOISE BURST · 8 RADIO INTERFERENCE · 9 SUBHARMONIC · 10 CHAOTIC MACHINE.
+Factory: 1 IND. DRONE · 2 METALLIC · 3 BROKEN OSC · 4 FDBK STORM · 5 DARK AMB · 6 COLLAPSE · 7 NOISE BURST ·
+8 RADIO INT · 9 SUB HARM · 10 CHAOTIC (short, so each fits the screen in one large line).
 Power-on plays preset 1. A sound changed since it loaded shows EDITED. User slots live in flash (two alternating
 4 KiB sectors at 0xF0000, so a power cut during a save loses only that save); a save silences the audio for
 ~20 ms while the sector erases. The factory sounds use the drive and delays.

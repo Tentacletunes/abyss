@@ -453,8 +453,8 @@ static void draw_value(uint32_t y0)
             put_s(q, "  EDITED");
         pr_name(pr_entry(ui.pr_cur), name);
         gfx_text(MX, (int32_t)y0 + 6, &F_LABEL, lab, ui.pr_edited ? C_ACC : C_DIM);
-        gfx_text(MX - 1, (int32_t)y0 + (gfx_text_w(&F_BIG, name) <= 240 - 2 * MX ? 18 : 26),
-                 gfx_text_w(&F_BIG, name) <= 240 - 2 * MX ? &F_BIG : &F_MID, name, C_INK);
+        gfx_text(MX - 1, (int32_t)y0 + (gfx_text_w(&F_NAME, name) <= 240 - 2 * MX ? 22 : 28),
+                 gfx_text_w(&F_NAME, name) <= 240 - 2 * MX ? &F_NAME : &F_MID, name, C_INK);
         return;
     }
     value_text(pi, num, unit, 0);
