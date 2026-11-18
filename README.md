@@ -14,7 +14,7 @@ playback, drone mode, the minimal UI with performance mode. See `docs/ARCHITECTU
 |---|---|
 | K1–K4, SELECT, ALGORITHM, PRESETS | the page's seven parameters, in that order (turning one makes it the big value) |
 | MASTER | output level |
-| HOME | OSC pages — press again: OSC / 01 → 02 → 03 |
+| HOME | MAIN — press again: SHAPE → LEVELS → MAIN |
 | ENV / EDIT | envelope / filter page |
 | LFO, FX, SAVE | MOD, FX, PRESETS pages (Milestones 3–5) |
 | GLO | performance mode: the current value huge |
@@ -23,8 +23,8 @@ playback, drone mode, the minimal UI with performance mode. See `docs/ARCHITECTU
 | OCT− / OCT+ | octave (both: reset) |
 | Keys | mono, last note priority; USB-MIDI notes on any channel |
 
-Pages: **OSC/01** FREQUENCY, OSC 2, OSC 3, NOISE, MIX, FILTER, RESONANCE · **OSC/02** WAVE 1–3, PULSE WIDTH,
-DETUNE, NOISE TYPE, SUB · **OSC/03** LEVEL 1–3, SUB, NOISE, MIX · **ENV** ATTACK, DECAY, SUSTAIN, RELEASE,
+Pages: **MAIN** FREQUENCY, OSC 2, OSC 3, NOISE, MIX, FILTER, RESONANCE · **SHAPE** WAVE 1–3, PULSE WIDTH,
+DETUNE, NOISE TYPE, SUB · **LEVELS** LEVEL 1–3, SUB, NOISE, MIX · **ENVELOPE** ATTACK, DECAY, SUSTAIN, RELEASE,
 ENV > FILTER · **FILTER** FILTER, RESONANCE, ENV > FILTER.
 
 ## Try it without hardware

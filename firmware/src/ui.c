@@ -4,7 +4,7 @@
  * Controls (matrix ids from felucca-bsp fm1_input.h; the printed labels as Felucca measured them):
  *   K1..K4, SELECT, ALGORITHM, PRESETS   the page's seven parameters, in that order
  *   MASTER pot                            output level
- *   HOME   OSC pages (again: 01 -> 02 -> 03)     ENV   envelope        EDIT  FILTER
+ *   HOME   MAIN (again: SHAPE -> LEVELS -> MAIN)     ENV   envelope        EDIT  FILTER
  *   LFO    MOD (Milestone 3)                     FX    FX (Milestone 4) SAVE  PRESETS (Milestone 5)
  *   GLO    performance mode: the last touched value, huge
  *   PLAY   DRONE on / off: the voice sounds without a key
@@ -24,22 +24,22 @@
 /* ------------------------------------------------------------- pages --- */
 enum { PG_OSC1, PG_OSC2, PG_OSC3, PG_ENV, PG_FILTER, PG_MOD, PG_FX, PG_PRESET, PG_COUNT };
 typedef struct {
-    const char *tag;                      /* "OSC / 01" */
+    const char *tag;                      /* the page's name, top right */
     int8_t slot[7];                       /* K1 K2 K3 K4 SELECT ALGORITHM PRESETS -> parameter, -1 none */
     int8_t prio[7];                       /* the order they are shown in when not focused */
     const char *later;                    /* not built yet: what the page says */
 } page_t;
 #define NONE7 {-1, -1, -1, -1, -1, -1, -1}
 static const page_t PAGES[PG_COUNT] = {
-    [PG_OSC1] = {"OSC / 01", {P_OSC1, P_OSC2, P_OSC3, P_NOISE, P_MIX, P_CUTOFF, P_RES},
+    [PG_OSC1] = {"MAIN", {P_OSC1, P_OSC2, P_OSC3, P_NOISE, P_MIX, P_CUTOFF, P_RES},
                  {P_OSC1, P_OSC2, P_NOISE, P_MIX, P_OSC3, P_CUTOFF, P_RES}, 0},
-    [PG_OSC2] = {"OSC / 02", {P_WAVE1, P_WAVE2, P_WAVE3, P_PW, P_DETUNE, P_NTYPE, P_SUB},
+    [PG_OSC2] = {"SHAPE", {P_WAVE1, P_WAVE2, P_WAVE3, P_PW, P_DETUNE, P_NTYPE, P_SUB},
                  {P_WAVE1, P_WAVE2, P_WAVE3, P_PW, P_DETUNE, P_NTYPE, P_SUB}, 0},
-    [PG_OSC3] = {"OSC / 03", {P_LVL1, P_LVL2, P_LVL3, P_SUB, P_NOISE, P_MIX, -1},
+    [PG_OSC3] = {"LEVELS", {P_LVL1, P_LVL2, P_LVL3, P_SUB, P_NOISE, P_MIX, -1},
                  {P_LVL1, P_LVL2, P_LVL3, P_SUB, P_NOISE, P_MIX, -1}, 0},
-    [PG_ENV] = {"ENV / 01", {P_ATK, P_DEC, P_SUS, P_REL, P_ENVF, -1, -1},
+    [PG_ENV] = {"ENVELOPE", {P_ATK, P_DEC, P_SUS, P_REL, P_ENVF, -1, -1},
                 {P_ATK, P_DEC, P_SUS, P_REL, P_ENVF, -1, -1}, 0},
-    [PG_FILTER] = {"FILTER / 01", {P_CUTOFF, P_RES, P_ENVF, -1, -1, -1, -1},
+    [PG_FILTER] = {"FILTER", {P_CUTOFF, P_RES, P_ENVF, -1, -1, -1, -1},
                    {P_CUTOFF, P_RES, P_ENVF, -1, -1, -1, -1}, 0},
     [PG_MOD] = {"MOD", NONE7, NONE7, "LFO 1, LFO 2, RANDOM\nARRIVE IN MILESTONE 3"},
     [PG_FX] = {"FX", NONE7, NONE7, "DISTORTION AND DUAL DELAY\nARRIVE IN MILESTONE 4"},
