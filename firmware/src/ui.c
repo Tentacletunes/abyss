@@ -62,7 +62,7 @@ static struct {
     uint8_t stack[16], nstack;            /* held notes, the last one sounds */
     uint8_t tap;                          /* REC held */
     uint8_t full;                         /* redraw and send everything */
-    char sig[4][48];                      /* what each band last showed */
+    char sig[3][48];                      /* what each band last showed */
     uint32_t frames;
     int32_t wave_gain;                    /* waveform display gain, Q8 */
 } ui;
@@ -299,9 +299,14 @@ static void value_text(int32_t pi, char *num, char *unit, uint32_t brief)
 }
 
 /* ------------------------------------------------------------- drawing --- */
-enum { B_HEAD, B_VALUE, B_WAVE, B_BOTTOM };
-static const uint8_t BAND[4][2] = {{0, 40}, {40, 106}, {106, 176}, {176, 240}};
-static const uint8_t BAND_P[4][2] = {{0, 40}, {40, 150}, {150, 226}, {226, 240}};   /* performance mode */
+/* Normal: HEAD (title, page) | VALUE (the last turned, large) | LOWER (all seven knobs in two rows, the waveform dim
+ * behind them). Performance: HEAD | VALUE (huge) | WAVE. A band is redrawn and sent when what it shows changes;
+ * LOWER and WAVE also on a timer, for the waveform */
+enum { B_HEAD, B_VALUE, B_LOWER, NBAND };
+static const uint8_t BAND[NBAND][2] = {{0, 34}, {34, 98}, {98, 240}};
+static const uint8_t BAND_P[NBAND][2] = {{0, 40}, {40, 150}, {150, 240}};
+#define C_WAVE_BG RGB(0x3C, 0x34, 0x5A)           /* the waveform behind the values: the accent, dimmed */
+#define WAVE_MS 90u                               /* the background waveform's refresh (its band is ~45 ms to send) */
 
 static int32_t focus_of(uint32_t pg)
 {
@@ -365,48 +370,11 @@ static void draw_value(uint32_t y0)
     }
 }
 
-/* the small values under the waveform. OSC pages: K1..K4 in the knobs' order, the one turned last in the accent;
- * other pages: three of the rest, by the page's priority. Returns how many */
-static int32_t bottom_list(uint32_t pg_i, int32_t *out)
-{
-    const page_t *pg = &PAGES[pg_i];
-    int32_t f = focus_of(pg_i), n = 0, i;
-    if (pg_i <= PG_OSC3) {
-        for (i = 0; i < 4; i++)
-            if (pg->slot[i] >= 0)
-                out[n++] = pg->slot[i];
-        return n;
-    }
-    for (i = 0; i < 7 && n < 3; i++)
-        if (pg->prio[i] >= 0 && pg->prio[i] != f)
-            out[n++] = pg->prio[i];
-    return n;
-}
-
-static void draw_bottom(uint32_t y0)
-{
-    const page_t *pg = &PAGES[ui.page];
-    int32_t f = focus_of(ui.page), list[4], n, i, quad = ui.page <= PG_OSC3, cw = 76;
-    const ab_font_t *vf = quad ? &F_VAL : &F_MID;
-    if (pg->later)
-        return;
-    n = bottom_list(ui.page, list);
-    gfx_fill(MX, (int32_t)y0 + 2, 240 - 2 * MX, 1, C_RULE);
-    for (i = 0; i < n; i++) {
-        int32_t pi = list[i], x = quad ? MX + (i ? 6 + i * 52 : 0) : MX + i * cw;   /* (quad: the first column wider, for "440Hz") */
-        char num[16], unit[8];
-        value_text(pi, num, unit, 1);
-        gfx_text(x, (int32_t)y0 + 13, &F_LABEL, AB_P[pi].brief, quad && pi == f ? C_ACC : C_DIM);
-        x = gfx_text(x - 1, (int32_t)y0 + (quad ? 30 : 27), vf, num, C_INK);
-        gfx_text(x + 1, (int32_t)y0 + 37, &F_LABEL, unit, C_DIM);
-    }
-}
-
-/* the waveform: the output from its last rising zero crossing, a point every 6 px, a 3 px stroke */
-static void draw_wave(uint32_t y0, uint32_t y1)
+/* the waveform: the output from its last rising zero crossing, a point every 6 px */
+static void draw_wave(int32_t mid, int32_t amp, int32_t stroke, uint16_t c)
 {
     enum { NPT = 36, STEP = 5 };
-    int32_t pts[NPT + 1], i, peak = 0, mid = (int32_t)(y0 + y1) / 2, amp = (int32_t)(y1 - y0) / 2 - 6, g;
+    int32_t pts[NPT + 1], i, peak = 0, g;
     uint32_t w = ab_scope_w, start = w - (uint32_t)(NPT * STEP) - 1u, k;
     for (k = 0; k < 200u; k++) {                   /* a rising zero crossing, for a still picture */
         uint32_t a = start - k;
@@ -425,12 +393,39 @@ static void draw_wave(uint32_t y0, uint32_t y1)
     ui.wave_gain += (g - ui.wave_gain) / 3;
     for (i = 0; i < NPT; i++) {
         int32_t xa = MX + i * 6, xb = MX + (i + 1) * 6;
-        int32_t ya = mid - ((pts[i] * ui.wave_gain) >> 15), yb = mid - ((pts[i + 1] * ui.wave_gain) >> 15);
-        gfx_line(xa, ya, xb > 240 - MX ? 240 - MX : xb, yb, 3, C_ACC);
+        int32_t ya = mid - ab_clamp((pts[i] * ui.wave_gain) >> 15, -amp, amp);
+        int32_t yb = mid - ab_clamp((pts[i + 1] * ui.wave_gain) >> 15, -amp, amp);
+        gfx_line(xa, ya, xb > 240 - MX ? 240 - MX : xb, yb, stroke, c);
     }
 }
 
-/* each band: a signature of what it shows; redrawn and sent only when that changes (the waveform: every frame) */
+/* one knob's label and value in a small column; the one turned last has its label in the accent */
+static void draw_cell(int32_t x, int32_t y, int32_t pi, int32_t focus)
+{
+    char num[16], unit[8];
+    value_text(pi, num, unit, 1);
+    gfx_text(x, y, &F_LABEL, AB_P[pi].brief, pi == focus ? C_ACC : C_DIM);
+    x = gfx_text(x - 1, y + 15, &F_VAL, num, C_INK);
+    gfx_text(x + 1, y + 24, &F_LABEL, unit, C_DIM);
+}
+
+/* all seven knobs as they sit on the panel: K1..K4 in the first row, SELECT ALGORITHM PRESETS in the second */
+static void draw_lower(uint32_t y0)
+{
+    static const int32_t COL[4] = {MX, MX + 58, MX + 110, MX + 162};   /* the first wider, for "440Hz" */
+    static const int32_t COL3[3] = {MX, MX + 72, MX + 144};            /* the second row: three, wider */
+    const page_t *pg = &PAGES[ui.page];
+    int32_t f = focus_of(ui.page), i, y = (int32_t)y0;
+    draw_wave(y + 116, 22, 2, C_WAVE_BG);          /* decoration, behind and below */
+    if (pg->later)
+        return;
+    gfx_fill(MX, y + 3, 240 - 2 * MX, 1, C_RULE);
+    for (i = 0; i < 7; i++)
+        if (pg->slot[i] >= 0)
+            draw_cell(i < 4 ? COL[i] : COL3[i - 4], y + (i < 4 ? 13 : 64), pg->slot[i], f);
+}
+
+/* a band's signature: what it shows; redrawn and sent only when that changes */
 static void band_sig(uint32_t b, char *s)
 {
     char *p = s;
@@ -446,31 +441,30 @@ static void band_sig(uint32_t b, char *s)
         value_text(f, num, unit, 0);
         p = put_s(p, num);
         p = put_s(p, unit);
-    } else if (b == B_BOTTOM && !pg->later) {
+    } else if (b == B_LOWER && !pg->later && !ui.perf) {
         char num[16], unit[8];
-        int32_t list[4], n = bottom_list(ui.page, list);
         *p++ = (char)('a' + f);
-        for (i = 0; i < n; i++) {
-            value_text(list[i], num, unit, 1);
-            p = put_s(p, num);
-            *p++ = '|';
-        }
+        for (i = 0; i < 7; i++)
+            if (pg->slot[i] >= 0) {
+                value_text(pg->slot[i], num, unit, 1);
+                p = put_s(p, num);
+                *p++ = '|';
+            }
     }
     *p = 0;
 }
 
 static void ui_frame(void)
 {
-    uint32_t b;
+    static uint32_t wave_ms;
+    uint32_t b, now = fm1_ms, wave_due = now - wave_ms >= (ui.perf ? 33u : WAVE_MS);
     const uint8_t (*bands)[2] = ui.perf ? BAND_P : BAND;
     char sig[48];
     ui_leds();
-    for (b = 0; b < 4u; b++) {
+    for (b = 0; b < NBAND; b++) {
         uint32_t y0 = bands[b][0], y1 = bands[b][1], i, same;
-        if (b == B_BOTTOM && ui.perf)
-            continue;                              /* performance mode: no small values */
         band_sig(b, sig);
-        same = !ui.full && b != B_WAVE;
+        same = !ui.full && !(b == B_LOWER && wave_due);
         for (i = 0; same && i < sizeof sig; i++) {
             if (sig[i] != ui.sig[b][i])
                 same = 0;
@@ -485,14 +479,15 @@ static void ui_frame(void)
         switch (b) {
         case B_HEAD: draw_head(y0); break;
         case B_VALUE: draw_value(y0); break;
-        case B_WAVE: draw_wave(y0 + 4u, y1 - 4u); break;
-        case B_BOTTOM: draw_bottom(y0); break;
+        case B_LOWER:
+            wave_ms = now;
+            if (ui.perf)
+                draw_wave((int32_t)(y0 + y1) / 2, (int32_t)(y1 - y0) / 2 - 10, 3, C_ACC);
+            else
+                draw_lower(y0);
+            break;
         }
         gfx_flush_rows(y0, y1);
-    }
-    if (ui.perf && ui.full) {                      /* (the strip under the waveform) */
-        gfx_fill(0, 226, 240, 14, C_BG);
-        gfx_flush_rows(226, 240);
     }
     ui.full = 0;
     ui.frames++;

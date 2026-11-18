@@ -55,10 +55,10 @@ static const ab_param_t AB_P[P_COUNT] = {
     [P_LVL1] = {"LEVEL 1", "LVL 1", 0, 100, 80, FMT_PCT, 0},
     [P_LVL2] = {"LEVEL 2", "LVL 2", 0, 100, 70, FMT_PCT, 0},
     [P_LVL3] = {"LEVEL 3", "LVL 3", 0, 100, 70, FMT_PCT, 0},
-    [P_ATK] = {"ATTACK", "ATTACK", 0, 127, 10, FMT_TIME, 0},
-    [P_DEC] = {"DECAY", "DECAY", 0, 127, 70, FMT_TIME, 0},
-    [P_SUS] = {"SUSTAIN", "SUSTAIN", 0, 100, 80, FMT_PCT, 0},
-    [P_REL] = {"RELEASE", "RELEASE", 0, 127, 75, FMT_TIME, 0},
+    [P_ATK] = {"ATTACK", "ATK", 0, 127, 10, FMT_TIME, 0},
+    [P_DEC] = {"DECAY", "DEC", 0, 127, 70, FMT_TIME, 0},
+    [P_SUS] = {"SUSTAIN", "SUS", 0, 100, 80, FMT_PCT, 0},
+    [P_REL] = {"RELEASE", "REL", 0, 127, 75, FMT_TIME, 0},
     [P_ENVF] = {"ENV > FILTER", "ENV>FLT", -100, 100, 0, FMT_BIPCT, 0},
 };
 
