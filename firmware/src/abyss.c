@@ -7,6 +7,9 @@
 #include <stdint.h>
 #define FELUCCA_CDC 1                         /* USB serial: a status line (CPU load) every second */
 #define FELUCCA_OTA 1                         /* the installer can replace ABYSS over USB-MIDI */
+#ifndef ABYSS_BUILD
+#define ABYSS_BUILD "dev"
+#endif
 #ifndef ABYSS_ID
 #define ABYSS_ID "FM-1_1300"
 #endif
@@ -235,6 +238,7 @@ static void splash(void)
     gfx_text((240 - gfx_text_w(&F_LABEL, "EXPERIMENTAL NOISE SYNTHESIZER")) / 2, 140, &F_LABEL,
              "EXPERIMENTAL NOISE SYNTHESIZER", C_DIM);
     gfx_fill(104, 168, 32, 3, C_ACC);
+    gfx_text((240 - gfx_text_w(&F_LABEL, ABYSS_BUILD)) / 2, 214, &F_LABEL, ABYSS_BUILD, C_RULE);   /* which build */
     gfx_flush_rows(0, 240);
 }
 

@@ -133,8 +133,21 @@ def ld_regions():
     return regs
 
 
+def build_tag():
+    """what the splash shows: the date and the source's git commit (+ if changed since), e.g. "2026-11-18 13baf11" """
+    import datetime
+    try:
+        h = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=SRC, capture_output=True, text=True).stdout.strip()
+        dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=SRC, capture_output=True,
+                               text=True).stdout.strip()
+    except OSError:
+        h, dirty = "", ""
+    return f"{datetime.date.today().isoformat()} {h or 'nogit'}{'+' if dirty else ''}"
+
+
 def build_app():
-    flags = [*CFLAGS, *HAL_INC, "-Ifirmware/src", "-Ifirmware/dsp", "-Ibuild/gen", f'-DABYSS_ID="{PRODUCT}"']
+    flags = [*CFLAGS, *HAL_INC, "-Ifirmware/src", "-Ifirmware/dsp", "-Ibuild/gen", f'-DABYSS_ID="{PRODUCT}"',
+             f'-DABYSS_BUILD="{build_tag()}"']
     bsp = FW / "bsp" / "chip"
     tc_all(("cc", "-c", bsp / "crt0.S", "-o", OUT / "crt0.o"),
            ("cc", "-c", bsp / "fm1_vec.S", "-o", OUT / "fm1_vec.o"),
@@ -206,7 +219,7 @@ def main():
     (OUT / "abyss.fwsc").write_bytes(pkg)
     print(f"app      build/abyss.bin  {len(img)} B")
     print(f"loader   build/loader/ota.bin  {len(ota)} B")
-    print(f"package  build/abyss.fwsc  {len(pkg)} B, identity {PRODUCT}")
+    print(f"package  build/abyss.fwsc  {len(pkg)} B, identity {PRODUCT}, build {build_tag()}")
 
 
 if __name__ == "__main__":
