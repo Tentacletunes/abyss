@@ -8,12 +8,12 @@ typedef struct { const char *name; ab_set_t set[48]; } ab_preset_t;
 #define END {-1, 0}
 
 static const ab_preset_t AB_FACTORY[] = {
-    {"IND. DRONE", {
+    {"INDUSTRIAL DRONE", {
         {P_OSC1, -12}, {P_WAVE1, W_SAW}, {P_OSC2, 7}, {P_WAVE2, W_SQR}, {P_OSC3, -12}, {P_WAVE3, W_SAW},
         {P_DETUNE, 18}, {P_SUB, 60}, {P_NOISE, 25}, {P_NTYPE, N_BROWN}, {P_CUTOFF, 72}, {P_RES, 55},
         {P_ATK, 70}, {P_DEC, 90}, {P_SUS, 90}, {P_REL, 105}, {P_CHAOS, 15}, {P_XMOD, 10},
         {P_L1RATE, 30}, {P_L1DEPTH, 35}, {P_L1WAVE, LW_TRI}, {P_L1DEST, D_CUTOFF}, {P_DTYPE, X_SOFT}, {P_DRIVE, 30}, {P_DTONE, 60}, {P_WET, 32}, {P_T1, 72}, {P_FB1, 50}, {P_T2, 95}, {P_FB2, 40}, {P_DLTONE, 45}, {P_MOD1, 20}, {P_LVL1, 50}, {P_LVL2, 40}, {P_LVL3, 40}, END}},
-    {"METALLIC", {
+    {"METALLIC MACHINE", {
         {P_WAVE1, W_SQR}, {P_LVL1, 100}, {P_OSC2, 19}, {P_WAVE2, W_SINE}, {P_LVL2, 90}, {P_FM, 55}, {P_RING, 60}, {P_OSC3, 31}, {P_LVL3, 30},
         {P_NOISE, 20}, {P_NTYPE, N_METAL}, {P_CUTOFF, 105}, {P_RES, 40},
         {P_ATK, 0}, {P_DEC, 55}, {P_SUS, 30}, {P_REL, 60},
@@ -22,17 +22,17 @@ static const ab_preset_t AB_FACTORY[] = {
         {P_SYNC, S_2}, {P_WAVE2, W_SAW}, {P_OSC2, 14}, {P_CHAOS, 55}, {P_LVL1, 40}, {P_LVL2, 90}, {P_LVL3, 0},
         {P_CUTOFF, 95}, {P_RES, 30}, {P_ATK, 5}, {P_SUS, 80},
         {P_RRATE, 80}, {P_RDEPTH, 50}, {P_RSMOOTH, 0}, {P_RDEST, D_OSC2}, {P_DTYPE, X_CRUSH}, {P_DRIVE, 45}, {P_DMIX, 70}, {P_WET, 22}, {P_T1, 55}, {P_FB1, 40}, {P_MOD1, 70}, END}},
-    {"FDBK STORM", {
+    {"FEEDBACK STORM", {
         {P_XMOD, 85}, {P_FM, 40}, {P_RES, 85}, {P_CUTOFF, 80}, {P_NOISE, 30}, {P_NTYPE, N_PINK}, {P_CHAOS, 30},
         {P_SUS, 100}, {P_REL, 100},
         {P_L1RATE, 70}, {P_L1DEPTH, 60}, {P_L1WAVE, LW_SAW}, {P_L1DEST, D_CUTOFF}, {P_DTYPE, X_FUZZ}, {P_DRIVE, 40}, {P_WET, 65}, {P_T1, 50}, {P_T2, 66}, {P_FB1, 96}, {P_FB2, 92}, {P_XFB, 55}, {P_MOD1, 45}, {P_MOD2, 40}, {P_DLTONE, 50}, {P_LVL1, 50}, {P_LVL2, 45}, {P_LVL3, 45}, END}},
-    {"DARK AMB", {
+    {"DARK AMBIENT", {
         {P_WAVE1, W_TRI}, {P_OSC2, 12}, {P_WAVE2, W_SINE}, {P_OSC3, -12}, {P_WAVE3, W_TRI}, {P_DETUNE, 25},
         {P_CUTOFF, 52}, {P_RES, 35}, {P_NOISE, 15}, {P_NTYPE, N_PINK}, {P_CHAOS, 8},
         {P_ATK, 105}, {P_DEC, 110}, {P_SUS, 85}, {P_REL, 115},
         {P_L1RATE, 25}, {P_L1DEPTH, 40}, {P_L1WAVE, LW_SINE}, {P_L1DEST, D_CUTOFF},
         {P_L2RATE, 45}, {P_L2DEPTH, 3}, {P_L2WAVE, LW_SINE}, {P_L2DEST, D_PITCH}, {P_WET, 58}, {P_T1, 100}, {P_T2, 116}, {P_FB1, 72}, {P_FB2, 66}, {P_DLTONE, 30}, {P_MOD1, 30}, {P_MOD2, 35}, {P_PAN1, -80}, {P_PAN2, 80}, END}},
-    {"COLLAPSE", {
+    {"DIGITAL COLLAPSE", {
         {P_NOISE, 60}, {P_NTYPE, N_DIGI}, {P_WAVE1, W_SQR}, {P_PW, 15}, {P_SYNC, S_3}, {P_OSC3, 17}, {P_WAVE3, W_SQR},
         {P_FM, 30}, {P_CUTOFF, 110}, {P_RES, 20}, {P_ATK, 0}, {P_DEC, 45}, {P_SUS, 40}, {P_REL, 50},
         {P_RRATE, 105}, {P_RDEPTH, 70}, {P_RSMOOTH, 0}, {P_RDEST, D_FM}, {P_DTYPE, X_DECIM}, {P_DRIVE, 50}, {P_WET, 30}, {P_T1, 38}, {P_FB1, 60}, {P_DLTONE, 85}, END}},
@@ -44,11 +44,11 @@ static const ab_preset_t AB_FACTORY[] = {
         {P_LVL1, 30}, {P_CUTOFF, 100}, {P_RES, 50},
         {P_RRATE, 95}, {P_RDEPTH, 60}, {P_RSMOOTH, 40}, {P_RDEST, D_OSC2},
         {P_L1RATE, 95}, {P_L1DEPTH, 50}, {P_L1WAVE, LW_SQR}, {P_L1DEST, D_LEVEL}, {P_DTYPE, X_CRUSH}, {P_DRIVE, 30}, {P_DTONE, 55}, {P_WET, 35}, {P_T1, 64}, {P_FB1, 55}, {P_MOD1, 65}, {P_MOD2, 50}, END}},
-    {"SUB HARM", {
+    {"SUBHARMONIC", {
         {P_OSC1, -12}, {P_WAVE1, W_SINE}, {P_SUB, 100}, {P_OSC2, -24}, {P_WAVE2, W_TRI}, {P_LVL1, 55}, {P_LVL2, 40}, {P_LVL3, 0},
         {P_CUTOFF, 45}, {P_RES, 25}, {P_ENVF, 30}, {P_ATK, 10}, {P_DEC, 80}, {P_SUS, 70}, {P_REL, 80},
         {P_L1RATE, 20}, {P_L1DEPTH, 25}, {P_L1WAVE, LW_SINE}, {P_L1DEST, D_CUTOFF}, {P_DTYPE, X_SOFT}, {P_DRIVE, 25}, {P_DTONE, 40}, {P_WET, 15}, {P_T1, 90}, {P_FB1, 35}, {P_DLTONE, 35}, END}},
-    {"CHAOTIC", {
+    {"CHAOTIC MACHINE", {
         {P_CHAOS, 80}, {P_XMOD, 50}, {P_FM, 35}, {P_SYNC, S_2}, {P_NOISE, 25}, {P_NTYPE, N_METAL},
         {P_CUTOFF, 85}, {P_RES, 60},
         {P_RRATE, 90}, {P_RDEPTH, 55}, {P_RSMOOTH, 20}, {P_RDEST, D_CUTOFF},
