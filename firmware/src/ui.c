@@ -4,8 +4,8 @@
  * Controls (matrix ids from felucca-bsp fm1_input.h; the printed labels as Felucca measured them):
  *   K1..K4, SELECT, ALGORITHM, PRESETS   the page's seven parameters, in that order
  *   MASTER pot                            output level
- *   HOME   MAIN (again: SHAPE -> LEVELS -> MAIN)     ENV   envelope        EDIT  FILTER
- *   LFO    MOD (Milestone 3)                     FX    FX (Milestone 4) SAVE  PRESETS (Milestone 5)
+ *   HOME   MAIN (again: CROSS -> SHAPE -> LEVELS -> MAIN)     ENV   envelope        EDIT  FILTER
+ *   LFO    MOD (again: ROUTING)                     FX    FX (Milestone 4) SAVE  PRESETS (Milestone 5)
  *   GLO    performance mode: the last touched value, huge
  *   PLAY   DRONE on / off: the voice sounds without a key
  *   REC    TAP: held, it plays the current note (APTBS's tap pad)
@@ -22,7 +22,7 @@
 #define MX 14                             /* side margin */
 
 /* ------------------------------------------------------------- pages --- */
-enum { PG_OSC1, PG_OSC2, PG_OSC3, PG_ENV, PG_FILTER, PG_MOD, PG_FX, PG_PRESET, PG_COUNT };
+enum { PG_OSC1, PG_CROSS, PG_OSC2, PG_OSC3, PG_ENV, PG_FILTER, PG_MOD, PG_ROUTE, PG_FX, PG_PRESET, PG_COUNT };
 typedef struct {
     const char *tag;                      /* the page's name, top right */
     int8_t slot[7];                       /* K1 K2 K3 K4 SELECT ALGORITHM PRESETS -> parameter, -1 none */
@@ -41,7 +41,12 @@ static const page_t PAGES[PG_COUNT] = {
                 {P_ATK, P_DEC, P_SUS, P_REL, P_ENVF, -1, -1}, 0},
     [PG_FILTER] = {"FILTER", {P_CUTOFF, P_RES, P_ENVF, -1, -1, -1, -1},
                    {P_CUTOFF, P_RES, P_ENVF, -1, -1, -1, -1}, 0},
-    [PG_MOD] = {"MOD", NONE7, NONE7, "LFO 1, LFO 2, RANDOM\nARRIVE IN MILESTONE 3"},
+    [PG_CROSS] = {"CROSS", {P_FM, P_XMOD, P_RING, P_SYNC, P_CHAOS, P_OSC2, P_OSC3},
+                  {P_FM, P_XMOD, P_RING, P_SYNC, P_CHAOS, P_OSC2, P_OSC3}, 0},
+    [PG_MOD] = {"MOD", {P_L1RATE, P_L1DEPTH, P_L2RATE, P_L2DEPTH, P_RRATE, P_RDEPTH, P_RSMOOTH},
+                {P_L1RATE, P_L1DEPTH, P_L2RATE, P_L2DEPTH, P_RRATE, P_RDEPTH, P_RSMOOTH}, 0},
+    [PG_ROUTE] = {"ROUTING", {P_L1WAVE, P_L1DEST, P_L2WAVE, P_L2DEST, P_RDEST, -1, -1},
+                  {P_L1WAVE, P_L1DEST, P_L2WAVE, P_L2DEST, P_RDEST, -1, -1}, 0},
     [PG_FX] = {"FX", NONE7, NONE7, "DISTORTION AND DUAL DELAY\nARRIVE IN MILESTONE 4"},
     [PG_PRESET] = {"PRESETS", NONE7, NONE7, "PRESETS ARRIVE\nIN MILESTONE 5"},
 };
@@ -123,10 +128,12 @@ static void page_go(uint32_t pg)
 static void button(uint32_t b)
 {
     switch (b) {
-    case BT_HOME: page_go(ui.page == PG_OSC1 ? PG_OSC2 : ui.page == PG_OSC2 ? PG_OSC3 : PG_OSC1); break;
+    case BT_HOME:                                  /* MAIN -> CROSS -> SHAPE -> LEVELS -> MAIN */
+        page_go(ui.page == PG_OSC1 ? PG_CROSS : ui.page == PG_CROSS ? PG_OSC2 : ui.page == PG_OSC2 ? PG_OSC3 : PG_OSC1);
+        break;
     case BT_ENV: page_go(PG_ENV); break;
     case BT_EDIT: page_go(PG_FILTER); break;
-    case BT_LFO: page_go(PG_MOD); break;
+    case BT_LFO: page_go(ui.page == PG_MOD ? PG_ROUTE : PG_MOD); break;   /* again: ROUTING */
     case BT_FX: page_go(PG_FX); break;
     case BT_SAVE: page_go(PG_PRESET); break;
     case BT_GLO: ui.perf ^= 1u; ui.full = 1; break;
@@ -209,7 +216,8 @@ static void gfx_poll(void) { ui_poll(); }
 
 static void ui_leds(void)
 {
-    static const uint8_t PAGE_BTN[PG_COUNT] = {BT_HOME, BT_HOME, BT_HOME, BT_ENV, BT_EDIT, BT_LFO, BT_FX, BT_SAVE};
+    static const uint8_t PAGE_BTN[PG_COUNT] = {BT_HOME, BT_HOME, BT_HOME, BT_HOME, BT_ENV, BT_EDIT, BT_LFO, BT_LFO,
+                                               BT_FX, BT_SAVE};
     uint32_t i;
     for (i = 0; i < 14u; i++) {
         uint32_t on = i == PAGE_BTN[ui.page] || (i == BT_PLAY && ab.drone) || (i == BT_GLO && ui.perf) ||
@@ -286,7 +294,18 @@ static void value_text(int32_t pi, char *num, char *unit, uint32_t brief)
     case FMT_OSC1HZ: hz_text(num, unit, dsp_osc1_hz10(), brief); break;
     case FMT_CUT: hz_text(num, unit, AB_CUT_HZ10[v], brief); break;
     case FMT_WAVE: put_s(num, brief ? AB_WAVE_BRIEF[v] : AB_WAVE_NAME[v]); break;
-    case FMT_NOISE: put_s(num, AB_NOISE_NAME[v]); break;
+    case FMT_NOISE: put_s(num, brief ? AB_NOISE_BRIEF[v] : AB_NOISE_NAME[v]); break;
+    case FMT_SYNC: put_s(num, brief ? AB_SYNC_BRIEF[v] : AB_SYNC_NAME[v]); break;
+    case FMT_LWAVE: put_s(num, brief ? AB_LWAVE_BRIEF[v] : AB_LWAVE_NAME[v]); break;
+    case FMT_DEST: put_s(num, brief ? AB_DEST_BRIEF[v] : AB_DEST_NAME[v]); break;
+    case FMT_LFOHZ: {
+        uint32_t h = AB_LFO_HZ100[v];
+        if (h < 100u && !brief) put_fix(num, h, 100u, 2u);
+        else if (h < 1000u) put_fix(num, h < 5u ? 5u : h, 100u, 1u);   /* (brief: "0.4", never "0.0") */
+        else put_u(num, (h + 50u) / 100u);
+        put_s(unit, brief ? "Hz" : " Hz");
+        break;
+    }
     case FMT_TIME: {
         uint32_t ms10 = AB_ENV_MS10[v];
         if (ms10 >= 10000u) { put_fix(num, ms10, 10000u, ms10 >= 100000u ? 0u : 1u); put_s(unit, brief ? "s" : " s"); }

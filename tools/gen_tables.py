@@ -43,6 +43,11 @@ def main(out):
         blocks = max(1.0, t * FS / 32)
         ek.append(max(1, min(65535, round(65536 * (1 - math.exp(-6.9 / blocks))))))
     L.append("static const uint16_t AB_ENV_K[128] = {" + ",".join(map(str, ek)) + "};")
+    # LFO / random rate knob 0..127: 0.02 Hz .. 40 Hz; phase increment per block of 32 samples; Hz x 100
+    lhz = [0.02 * 2000 ** (k / 127) for k in range(128)]
+    L.append("static const uint32_t AB_LFO_INC[128] = {" +
+             ",".join(f"{round(h * 32 / FS * 2 ** 32)}u" for h in lhz) + "};")
+    L.append("static const uint32_t AB_LFO_HZ100[128] = {" + ",".join(f"{round(h * 100)}u" for h in lhz) + "};")
     ms = [round(1000 * 0.001 * (10000 ** (k / 127)) * 10) for k in range(128)]
     L.append("static const uint32_t AB_ENV_MS10[128] = {" + ",".join(f"{v}u" for v in ms) + "};")
     open(out, "w").write("\n".join(L) + "\n")

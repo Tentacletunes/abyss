@@ -96,5 +96,61 @@ int main(int argc, char **argv)
     snprintf(p, sizeof p, "%s/05_mockup.wav", dir); f = wav_open(p);
     ab.drone = 1; ab.note = 45; ab.p[P_NOISE] = 68; ab.p[P_MIX] = 75; ab.p[P_CUTOFF] = 90; ab.p[P_RES] = 60;
     run(f, 3.0); wav_close(f); report("05 mockup settings");
+
+    /* 6: Milestone 3 - CROSS: FM sweep, cross mod, ring, sync sweep, chaos */
+    dsp_init();
+    snprintf(p, sizeof p, "%s/06_cross.wav", dir); f = wav_open(p);
+    ab.drone = 1; ab.note = 45; ab.p[P_CUTOFF] = 120; ab.p[P_LVL2] = ab.p[P_LVL3] = 0; ab.p[P_WAVE2] = W_SINE;
+    ab.p[P_OSC2] = 7;
+    for (k = 0; k <= 100; k += 2) { ab.p[P_FM] = (int16_t)k; run(f, 0.04); }
+    report("06a FM sweep");
+    ab.p[P_FM] = 0; ab.p[P_LVL3] = 60; ab.p[P_OSC3] = -5;
+    for (k = 0; k <= 100; k += 2) { ab.p[P_XMOD] = (int16_t)k; run(f, 0.04); }
+    report("06b cross mod sweep");
+    ab.p[P_XMOD] = 0; ab.p[P_LVL1] = ab.p[P_LVL3] = 0; ab.p[P_RING] = 100; ab.p[P_LVL2] = 0; run(f, 1.0);
+    report("06c ring only");
+    ab.p[P_RING] = 0; ab.p[P_LVL2] = 90; ab.p[P_WAVE2] = W_SAW; ab.p[P_SYNC] = S_2;
+    for (k = 0; k <= 36; k++) { ab.p[P_OSC2] = (int16_t)k; run(f, 0.05); }
+    report("06d sync sweep");
+    ab.p[P_SYNC] = 0; ab.p[P_LVL1] = ab.p[P_LVL3] = 70; ab.p[P_CHAOS] = 100; run(f, 2.0);
+    report("06e chaos 100");
+    wav_close(f);
+
+    /* 7: the six noise types, alone, 1 s each */
+    dsp_init();
+    snprintf(p, sizeof p, "%s/07_noises.wav", dir); f = wav_open(p);
+    ab.drone = 1; ab.note = 45; ab.p[P_LVL1] = ab.p[P_LVL2] = ab.p[P_LVL3] = 0; ab.p[P_CUTOFF] = 127; ab.p[P_RES] = 0;
+    ab.p[P_NOISE] = 100;
+    for (k = 0; k < N_COUNT; k++) {
+        char nm[32];
+        ab.p[P_NTYPE] = (int16_t)k; run(f, 1.0);
+        snprintf(nm, sizeof nm, "07 noise %s", AB_NOISE_NAME[k]); report(nm);
+    }
+    wav_close(f);
+
+    /* 8: modulation: LFO 1 on the filter, LFO 2 on pitch, random on OSC 2 */
+    dsp_init();
+    snprintf(p, sizeof p, "%s/08_mod.wav", dir); f = wav_open(p);
+    ab.drone = 1; ab.note = 40; ab.p[P_RES] = 70; ab.p[P_CUTOFF] = 70;
+    ab.p[P_L1DEPTH] = 80; ab.p[P_L1RATE] = 60; ab.p[P_L1DEST] = D_CUTOFF; run(f, 2.5);
+    ab.p[P_L2DEPTH] = 15; ab.p[P_L2RATE] = 75; ab.p[P_L2DEST] = D_PITCH; run(f, 2.0);
+    ab.p[P_RDEPTH] = 60; ab.p[P_RRATE] = 85; ab.p[P_RDEST] = D_OSC2; ab.p[P_RSMOOTH] = 30; run(f, 2.5);
+    ab.p[P_L1DEST] = D_LEVEL; ab.p[P_L1WAVE] = LW_SQR; ab.p[P_L1RATE] = 90; ab.p[P_L1DEPTH] = 100; run(f, 2.0);
+    report("08 modulation");
+    wav_close(f);
+
+    /* 9: fuzz: every parameter random, every 50 ms, for 60 s (overflow and stability) */
+    dsp_init();
+    snprintf(p, sizeof p, "%s/09_fuzz.wav", dir); f = wav_open(p);
+    srand(1234);
+    for (i = 0; i < 1200; i++) {
+        for (k = 0; k < P_COUNT; k++)
+            if (rand() % 4 == 0)
+                ab.p[k] = (int16_t)(AB_P[k].min + rand() % (AB_P[k].max - AB_P[k].min + 1));
+        if (rand() % 10 == 0) { ab.note = (uint8_t)(rand() % 128); ab.trig++; }
+        ab.drone = (uint8_t)(rand() % 3 != 0); ab.gate = (uint8_t)(rand() & 1);
+        run(f, 0.05);
+    }
+    wav_close(f); report("09 fuzz 60 s");
     return 0;
 }

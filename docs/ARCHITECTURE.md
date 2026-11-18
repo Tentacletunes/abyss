@@ -1,4 +1,4 @@
-# ABYSS — architecture (Milestone 1 and 2)
+# ABYSS — architecture (Milestones 1–3)
 
 ## Hardware, as verified from source
 
@@ -53,7 +53,24 @@ block. Notes go through `ab.note / ab.gate / ab.trig`.
   Still to come: diode-synced VCO2/3 and VCO1 cross-mod (M3), LM386-style drive + folds (M4), the two
   PT2399 delays in series with feedback and blend (M4).
 
+## Milestone 3: experimental synthesis
+
+* **FM 2 > 1**: linear, through-zero FM of OSC 1 by OSC 2 (100 % = index 2). **CROSS MOD 1 <> 3**: OSC 3 bends
+  OSC 1 and OSC 1 bends OSC 3, each from the other's last sample — a feedback pair, the digital cousin of the
+  APTBS VCO interaction. **RING 1 x 2** adds the product. **SYNC** restarts OSC 2, 3 or both when OSC 1 wraps
+  (the APTBS diode sync), at the right fractional phase.
+* **CHAOS**: each oscillator drifts on its own slow random walk (up to ±12 semitones) and gets white-noise FM.
+* **Noise**: WHITE, PINK, BROWN, DIGITAL (15-bit LFSR clocked at 16× OSC 1), METAL (its 93-step short mode), CRACKLE.
+* **Modulation** (block rate, 1.4 kHz): LFO 1, LFO 2 (sine, triangle, square, saw, random) and RANDOM (sample and
+  hold with SMOOTH), each with a depth and one destination: pitch, OSC 2 pitch, filter, resonance, level, FM, noise.
+* FM math stays in 32 bits: the increment is bent as `(inc >> 18) * m * 8`, so frequencies above ~11 kHz are not
+  bent further; outputs are clamped before they modulate. The host test now runs under UBSan with a 60-second
+  random-parameter fuzz: no overflow, no undefined behaviour.
+
 ## Measurements (fm1-emu, 240 MHz model)
+
+* Milestone 3, everything on (FM, cross mod, ring, sync, chaos, three modulators): **~6.5 % CPU**, 191 µs worst
+  half-buffer, 0 late halves.
 
 * Audio render: **~4 % CPU** average, 123 µs worst half-buffer of 2 900 µs; 0 late halves.
 * Output continuous through page changes, perf mode and drone (no zero runs in the recording).
