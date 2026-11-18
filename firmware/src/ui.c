@@ -365,23 +365,40 @@ static void draw_value(uint32_t y0)
     }
 }
 
+/* the small values under the waveform. OSC pages: K1..K4 in the knobs' order, the one turned last in the accent;
+ * other pages: three of the rest, by the page's priority. Returns how many */
+static int32_t bottom_list(uint32_t pg_i, int32_t *out)
+{
+    const page_t *pg = &PAGES[pg_i];
+    int32_t f = focus_of(pg_i), n = 0, i;
+    if (pg_i <= PG_OSC3) {
+        for (i = 0; i < 4; i++)
+            if (pg->slot[i] >= 0)
+                out[n++] = pg->slot[i];
+        return n;
+    }
+    for (i = 0; i < 7 && n < 3; i++)
+        if (pg->prio[i] >= 0 && pg->prio[i] != f)
+            out[n++] = pg->prio[i];
+    return n;
+}
+
 static void draw_bottom(uint32_t y0)
 {
     const page_t *pg = &PAGES[ui.page];
-    int32_t f = focus_of(ui.page), col = 0, i;
+    int32_t f = focus_of(ui.page), list[4], n, i, quad = ui.page <= PG_OSC3, cw = 76;
+    const ab_font_t *vf = quad ? &F_VAL : &F_MID;
     if (pg->later)
         return;
+    n = bottom_list(ui.page, list);
     gfx_fill(MX, (int32_t)y0 + 2, 240 - 2 * MX, 1, C_RULE);
-    for (i = 0; i < 7 && col < 3; i++) {
-        int32_t pi = pg->prio[i], x = MX + col * 76;
+    for (i = 0; i < n; i++) {
+        int32_t pi = list[i], x = quad ? MX + (i ? 6 + i * 52 : 0) : MX + i * cw;   /* (quad: the first column wider, for "440Hz") */
         char num[16], unit[8];
-        if (pi < 0 || pi == f)
-            continue;
         value_text(pi, num, unit, 1);
-        gfx_text(x, (int32_t)y0 + 13, &F_LABEL, AB_P[pi].brief, C_DIM);
-        x = gfx_text(x - 1, (int32_t)y0 + 27, &F_MID, num, C_INK);
-        gfx_text(x + 2, (int32_t)y0 + 37, &F_LABEL, unit, C_DIM);
-        col++;
+        gfx_text(x, (int32_t)y0 + 13, &F_LABEL, AB_P[pi].brief, quad && pi == f ? C_ACC : C_DIM);
+        x = gfx_text(x - 1, (int32_t)y0 + (quad ? 30 : 27), vf, num, C_INK);
+        gfx_text(x + 1, (int32_t)y0 + 37, &F_LABEL, unit, C_DIM);
     }
 }
 
@@ -431,15 +448,13 @@ static void band_sig(uint32_t b, char *s)
         p = put_s(p, unit);
     } else if (b == B_BOTTOM && !pg->later) {
         char num[16], unit[8];
-        int32_t n = 0;
+        int32_t list[4], n = bottom_list(ui.page, list);
         *p++ = (char)('a' + f);
-        for (i = 0; i < 7 && n < 3; i++)
-            if (pg->prio[i] >= 0 && pg->prio[i] != f) {
-                value_text(pg->prio[i], num, unit, 1);
-                p = put_s(p, num);
-                *p++ = '|';
-                n++;
-            }
+        for (i = 0; i < n; i++) {
+            value_text(list[i], num, unit, 1);
+            p = put_s(p, num);
+            *p++ = '|';
+        }
     }
     *p = 0;
 }

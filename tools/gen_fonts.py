@@ -17,6 +17,7 @@ FACES = [
     ("F_LABEL", 12, 560, 1, None),     # small caps labels, page tag
     ("F_TITLE", 21, 700, 0, None),     # "ABYSS"
     ("F_MID", 24, 600, 0, None),       # secondary values
+    ("F_VAL", 19, 600, 0, None),       # four small values in a row (OSC pages)
     ("F_BIG", 44, 600, 0, None),       # the primary value
     ("F_HUGE", 76, 600, -1, "0123456789.-+%: "),   # performance mode digits
 ]
