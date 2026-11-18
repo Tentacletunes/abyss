@@ -22,40 +22,37 @@
 #define MX 14                             /* side margin */
 
 /* ------------------------------------------------------------- pages --- */
-enum { PG_OSC1, PG_CROSS, PG_OSC2, PG_OSC3, PG_ENV, PG_FILTER, PG_MOD, PG_ROUTE, PG_FX, PG_PRESET, PG_COUNT };
+/* One topic a page, four parameters on K1..K4. HOME steps through the pages, SELECT turns through them; the left
+ * knobs keep one job each everywhere: SELECT the page, ALGORITHM the filter, PRESETS (Milestone 5) the presets */
+enum { PG_OSC1, PG_OSC2, PG_OSC3, PG_NOISE, PG_CROSS, PG_FILTER, PG_ENV, PG_LFO1, PG_LFO2, PG_RAND,
+       PG_FX, PG_PRESET, PG_COUNT };
+#define PG_CYCLE PG_FX                    /* HOME and SELECT go round the pages before this one */
 typedef struct {
     const char *tag;                      /* the page's name, top right */
-    int8_t slot[7];                       /* K1 K2 K3 K4 SELECT ALGORITHM PRESETS -> parameter, -1 none */
-    int8_t prio[7];                       /* the order they are shown in when not focused */
+    int8_t slot[4];                       /* K1 K2 K3 K4 -> parameter, -1 none */
     const char *later;                    /* not built yet: what the page says */
 } page_t;
-#define NONE7 {-1, -1, -1, -1, -1, -1, -1}
+#define NONE4 {-1, -1, -1, -1}
 static const page_t PAGES[PG_COUNT] = {
-    [PG_OSC1] = {"MAIN", {P_OSC1, P_OSC2, P_OSC3, P_NOISE, P_MIX, P_CUTOFF, P_RES},
-                 {P_OSC1, P_OSC2, P_NOISE, P_MIX, P_OSC3, P_CUTOFF, P_RES}, 0},
-    [PG_OSC2] = {"SHAPE", {P_WAVE1, P_WAVE2, P_WAVE3, P_PW, P_DETUNE, P_NTYPE, P_SUB},
-                 {P_WAVE1, P_WAVE2, P_WAVE3, P_PW, P_DETUNE, P_NTYPE, P_SUB}, 0},
-    [PG_OSC3] = {"LEVELS", {P_LVL1, P_LVL2, P_LVL3, P_SUB, P_NOISE, P_MIX, -1},
-                 {P_LVL1, P_LVL2, P_LVL3, P_SUB, P_NOISE, P_MIX, -1}, 0},
-    [PG_ENV] = {"ENVELOPE", {P_ATK, P_DEC, P_SUS, P_REL, P_ENVF, -1, -1},
-                {P_ATK, P_DEC, P_SUS, P_REL, P_ENVF, -1, -1}, 0},
-    [PG_FILTER] = {"FILTER", {P_CUTOFF, P_RES, P_ENVF, -1, -1, -1, -1},
-                   {P_CUTOFF, P_RES, P_ENVF, -1, -1, -1, -1}, 0},
-    [PG_CROSS] = {"CROSS", {P_FM, P_XMOD, P_RING, P_SYNC, P_CHAOS, P_OSC2, P_OSC3},
-                  {P_FM, P_XMOD, P_RING, P_SYNC, P_CHAOS, P_OSC2, P_OSC3}, 0},
-    [PG_MOD] = {"MOD", {P_L1RATE, P_L1DEPTH, P_L2RATE, P_L2DEPTH, P_RRATE, P_RDEPTH, P_RSMOOTH},
-                {P_L1RATE, P_L1DEPTH, P_L2RATE, P_L2DEPTH, P_RRATE, P_RDEPTH, P_RSMOOTH}, 0},
-    [PG_ROUTE] = {"ROUTING", {P_L1WAVE, P_L1DEST, P_L2WAVE, P_L2DEST, P_RDEST, -1, -1},
-                  {P_L1WAVE, P_L1DEST, P_L2WAVE, P_L2DEST, P_RDEST, -1, -1}, 0},
-    [PG_FX] = {"FX", NONE7, NONE7, "DISTORTION AND DUAL DELAY\nARRIVE IN MILESTONE 4"},
-    [PG_PRESET] = {"PRESETS", NONE7, NONE7, "PRESETS ARRIVE\nIN MILESTONE 5"},
+    [PG_OSC1] = {"OSC 1", {P_OSC1, P_WAVE1, P_LVL1, P_SUB}, 0},
+    [PG_OSC2] = {"OSC 2", {P_OSC2, P_WAVE2, P_LVL2, P_DETUNE}, 0},
+    [PG_OSC3] = {"OSC 3", {P_OSC3, P_WAVE3, P_LVL3, P_PW}, 0},
+    [PG_NOISE] = {"NOISE", {P_NOISE, P_NTYPE, P_CHAOS, -1}, 0},
+    [PG_CROSS] = {"CROSS", {P_FM, P_XMOD, P_RING, P_SYNC}, 0},
+    [PG_FILTER] = {"FILTER", {P_CUTOFF, P_RES, P_ENVF, -1}, 0},
+    [PG_ENV] = {"ENVELOPE", {P_ATK, P_DEC, P_SUS, P_REL}, 0},
+    [PG_LFO1] = {"LFO 1", {P_L1RATE, P_L1DEPTH, P_L1WAVE, P_L1DEST}, 0},
+    [PG_LFO2] = {"LFO 2", {P_L2RATE, P_L2DEPTH, P_L2WAVE, P_L2DEST}, 0},
+    [PG_RAND] = {"RANDOM", {P_RRATE, P_RDEPTH, P_RSMOOTH, P_RDEST}, 0},
+    [PG_FX] = {"FX", NONE4, "DISTORTION AND DUAL DELAY\nARRIVE IN MILESTONE 4"},
+    [PG_PRESET] = {"PRESETS", NONE4, "PRESETS ARRIVE\nIN MILESTONE 5"},
 };
 
 /* matrix button ids (Felucca panel.c PANEL_DEFAULT, measured on hardware) */
 enum { BT_OCTDN = 0, BT_OCTUP = 1, BT_FX = 2, BT_SCL = 3, BT_ENV = 4, BT_LFO = 5, BT_EDIT = 6, BT_GLO = 7,
        BT_HOME = 8, BT_SAVE = 9, BT_ARP = 10, BT_SEQ = 11, BT_PLAY = 12, BT_REC = 13 };
-/* matrix encoder -> slot: SELECT 0, ALGORITHM 1, K1..K4 2..5, PRESETS 6 */
-static const uint8_t ENC_SLOT[FM1_NENC] = {4, 5, 0, 1, 2, 3, 6};
+/* matrix encoders: SELECT 0, ALGORITHM 1, K1..K4 2..5, PRESETS 6 */
+enum { EN_SELECT = 0, EN_ALGO = 1, EN_K1 = 2, EN_PRESETS = 6 };
 
 static struct {
     uint8_t page, perf;
@@ -128,12 +125,10 @@ static void page_go(uint32_t pg)
 static void button(uint32_t b)
 {
     switch (b) {
-    case BT_HOME:                                  /* MAIN -> CROSS -> SHAPE -> LEVELS -> MAIN */
-        page_go(ui.page == PG_OSC1 ? PG_CROSS : ui.page == PG_CROSS ? PG_OSC2 : ui.page == PG_OSC2 ? PG_OSC3 : PG_OSC1);
-        break;
+    case BT_HOME: page_go(ui.page + 1u >= PG_CYCLE ? 0u : ui.page + 1u); break;   /* the next page, round */
     case BT_ENV: page_go(PG_ENV); break;
     case BT_EDIT: page_go(PG_FILTER); break;
-    case BT_LFO: page_go(ui.page == PG_MOD ? PG_ROUTE : PG_MOD); break;   /* again: ROUTING */
+    case BT_LFO: page_go(ui.page == PG_LFO1 ? PG_LFO2 : ui.page == PG_LFO2 ? PG_RAND : PG_LFO1); break;
     case BT_FX: page_go(PG_FX); break;
     case BT_SAVE: page_go(PG_PRESET); break;
     case BT_GLO: ui.perf ^= 1u; ui.full = 1; break;
@@ -200,7 +195,15 @@ static void ui_poll(void)                      /* keys, buttons, knobs, MIDI: of
         uint32_t now = fm1_ms, dt;
         if (!s)
             continue;
-        pi = PAGES[ui.page].slot[ENC_SLOT[i]];
+        if (i == EN_SELECT) {                      /* SELECT: the pages, one a click */
+            int32_t pg = ui.page >= PG_CYCLE ? (s > 0 ? -1 : PG_CYCLE) : (int32_t)ui.page;
+            pg += s > 0 ? 1 : -1;
+            page_go((uint32_t)(pg < 0 ? 0 : pg >= PG_CYCLE ? PG_CYCLE - 1 : pg));
+            continue;
+        }
+        if (i == EN_PRESETS)
+            continue;                              /* (Milestone 5: the presets) */
+        pi = i == EN_ALGO ? P_CUTOFF : PAGES[ui.page].slot[i - EN_K1];   /* ALGORITHM: the filter, on every page */
         if (pi < 0)
             continue;
         dt = now - ui.enc_ms[i];
@@ -216,8 +219,8 @@ static void gfx_poll(void) { ui_poll(); }
 
 static void ui_leds(void)
 {
-    static const uint8_t PAGE_BTN[PG_COUNT] = {BT_HOME, BT_HOME, BT_HOME, BT_HOME, BT_ENV, BT_EDIT, BT_LFO, BT_LFO,
-                                               BT_FX, BT_SAVE};
+    static const uint8_t PAGE_BTN[PG_COUNT] = {BT_HOME, BT_HOME, BT_HOME, BT_HOME, BT_HOME, BT_EDIT, BT_ENV,
+                                               BT_LFO, BT_LFO, BT_LFO, BT_FX, BT_SAVE};
     uint32_t i;
     for (i = 0; i < 14u; i++) {
         uint32_t on = i == PAGE_BTN[ui.page] || (i == BT_PLAY && ab.drone) || (i == BT_GLO && ui.perf) ||
@@ -318,7 +321,7 @@ static void value_text(int32_t pi, char *num, char *unit, uint32_t brief)
 }
 
 /* ------------------------------------------------------------- drawing --- */
-/* Normal: HEAD (title, page) | VALUE (the last turned, large) | LOWER (all seven knobs in two rows, the waveform dim
+/* Normal: HEAD (title, page) | VALUE (the last turned, large) | LOWER (the page's four knobs, two by two, the waveform dim
  * behind them). Performance: HEAD | VALUE (huge) | WAVE. A band is redrawn and sent when what it shows changes;
  * LOWER and WAVE also on a timer, for the waveform */
 enum { B_HEAD, B_VALUE, B_LOWER, NBAND };
@@ -330,14 +333,21 @@ static const uint8_t BAND_P[NBAND][2] = {{0, 40}, {40, 150}, {150, 240}};
 static int32_t focus_of(uint32_t pg)
 {
     int32_t f = ui.focus[pg];
-    return f >= 0 ? f : PAGES[pg].prio[0];
+    return f >= 0 ? f : PAGES[pg].slot[0];
 }
 
 static void draw_head(uint32_t y)
 {
     const char *tag = PAGES[ui.page].tag;
     gfx_text(MX, (int32_t)y + 6, &F_TITLE, "ABYSS", C_INK);
-    gfx_text(240 - MX - gfx_text_w(&F_LABEL, tag), (int32_t)y + 11, &F_LABEL, tag, C_DIM);
+    int32_t x = 240 - MX - gfx_text_w(&F_LABEL, tag);
+    gfx_text(x, (int32_t)y + 11, &F_LABEL, tag, C_INK);
+    if (ui.page < PG_CYCLE) {                      /* where it is in the round: "3/10", dim, before the name */
+        char n[8], *q = put_u(n, ui.page + 1u);
+        *q++ = '/';
+        put_u(q, PG_CYCLE);
+        gfx_text(x - 8 - gfx_text_w(&F_LABEL, n), (int32_t)y + 11, &F_LABEL, n, C_DIM);
+    }
     if (ab.drone)                                  /* DRONE: a small accent mark beside the title */
         gfx_fill(MX + gfx_text_w(&F_TITLE, "ABYSS") + 8, (int32_t)y + 17, 6, 6, C_ACC);
 }
@@ -418,30 +428,30 @@ static void draw_wave(int32_t mid, int32_t amp, int32_t stroke, uint16_t c)
     }
 }
 
-/* one knob's label and value in a small column; the one turned last has its label in the accent */
+/* one knob's label and value; the one turned last has its label in the accent */
 static void draw_cell(int32_t x, int32_t y, int32_t pi, int32_t focus)
 {
     char num[16], unit[8];
-    value_text(pi, num, unit, 1);
+    value_text(pi, num, unit, 0);                  /* the full form when it fits the column, else the brief one */
+    if (gfx_text_w(&F_MID, num) + gfx_text_w(&F_LABEL, unit) > 100)
+        value_text(pi, num, unit, 1);
     gfx_text(x, y, &F_LABEL, AB_P[pi].brief, pi == focus ? C_ACC : C_DIM);
-    x = gfx_text(x - 1, y + 15, &F_VAL, num, C_INK);
-    gfx_text(x + 1, y + 24, &F_LABEL, unit, C_DIM);
+    x = gfx_text(x - 1, y + 14, &F_MID, num, C_INK);
+    gfx_text(x + 2, y + 14 + F_MID.asc - F_LABEL.asc - 3, &F_LABEL, unit[0] == ' ' ? unit + 1 : unit, C_DIM);
 }
 
-/* all seven knobs as they sit on the panel: K1..K4 in the first row, SELECT ALGORITHM PRESETS in the second */
+/* the page's four knobs, two by two: K1 K2 above, K3 K4 below; the waveform dim beneath */
 static void draw_lower(uint32_t y0)
 {
-    static const int32_t COL[4] = {MX, MX + 58, MX + 110, MX + 162};   /* the first wider, for "440Hz" */
-    static const int32_t COL3[3] = {MX, MX + 72, MX + 144};            /* the second row: three, wider */
     const page_t *pg = &PAGES[ui.page];
     int32_t f = focus_of(ui.page), i, y = (int32_t)y0;
-    draw_wave(y + 116, 22, 2, C_WAVE_BG);          /* decoration, behind and below */
+    draw_wave(y + 122, 15, 2, C_WAVE_BG);          /* decoration, behind and below */
     if (pg->later)
         return;
     gfx_fill(MX, y + 3, 240 - 2 * MX, 1, C_RULE);
-    for (i = 0; i < 7; i++)
+    for (i = 0; i < 4; i++)
         if (pg->slot[i] >= 0)
-            draw_cell(i < 4 ? COL[i] : COL3[i - 4], y + (i < 4 ? 13 : 64), pg->slot[i], f);
+            draw_cell(MX + (i & 1) * 108, y + 12 + (i >> 1) * 50, pg->slot[i], f);
 }
 
 /* a band's signature: what it shows; redrawn and sent only when that changes */
@@ -463,9 +473,9 @@ static void band_sig(uint32_t b, char *s)
     } else if (b == B_LOWER && !pg->later && !ui.perf) {
         char num[16], unit[8];
         *p++ = (char)('a' + f);
-        for (i = 0; i < 7; i++)
+        for (i = 0; i < 4; i++)
             if (pg->slot[i] >= 0) {
-                value_text(pg->slot[i], num, unit, 1);
+                value_text(pg->slot[i], num, unit, 0);
                 p = put_s(p, num);
                 *p++ = '|';
             }

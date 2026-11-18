@@ -11,13 +11,19 @@ mode, the minimal UI with performance mode. See `docs/ARCHITECTURE.md`.
 
 ## Controls
 
+Every page is one topic with four parameters on **K1–K4** (shown two by two: K1 K2 above, K3 K4 below). The left
+knobs do the same job on every page.
+
 | Control | Does |
 |---|---|
-| K1–K4, SELECT, ALGORITHM, PRESETS | the page's seven parameters, in that order (turning one makes it the big value) |
+| K1–K4 | the page's four parameters (turning one makes it the big value) |
+| SELECT | turn through the pages |
+| ALGORITHM | filter cutoff, on every page |
+| PRESETS | reserved for presets (Milestone 5) |
 | MASTER | output level |
-| HOME | MAIN — press again: CROSS → SHAPE → LEVELS → MAIN |
-| ENV / EDIT | envelope / filter page |
-| LFO | MOD — press again: ROUTING |
+| HOME | next page, round all ten |
+| EDIT / ENV | FILTER / ENVELOPE |
+| LFO | LFO 1 → LFO 2 → RANDOM |
 | FX, SAVE | FX, PRESETS pages (Milestones 4–5) |
 | GLO | performance mode: the current value huge |
 | PLAY | DRONE on/off (lit while on) |
@@ -25,11 +31,18 @@ mode, the minimal UI with performance mode. See `docs/ARCHITECTURE.md`.
 | OCT− / OCT+ | octave (both: reset) |
 | Keys | mono, last note priority; USB-MIDI notes on any channel |
 
-Pages: **MAIN** FREQUENCY, OSC 2, OSC 3, NOISE, MIX, FILTER, RESONANCE · **CROSS** FM, X-MOD, RING, SYNC, CHAOS,
-OSC 2, OSC 3 · **MOD** LFO 1 RATE/DEPTH, LFO 2 RATE/DEPTH, RANDOM RATE/DEPTH/SMOOTH · **ROUTING** LFO 1 WAVE/TO,
-LFO 2 WAVE/TO, RANDOM TO · **SHAPE** WAVE 1–3, PULSE WIDTH,
-DETUNE, NOISE TYPE, SUB · **LEVELS** LEVEL 1–3, SUB, NOISE, MIX · **ENVELOPE** ATTACK, DECAY, SUSTAIN, RELEASE,
-ENV > FILTER · **FILTER** FILTER, RESONANCE, ENV > FILTER.
+| # | Page | K1 | K2 | K3 | K4 |
+|---|---|---|---|---|---|
+| 1 | OSC 1 | FREQUENCY | WAVE | LEVEL | SUB OSC |
+| 2 | OSC 2 | TUNE | WAVE | LEVEL | DETUNE 2/3 |
+| 3 | OSC 3 | TUNE | WAVE | LEVEL | PULSE WIDTH |
+| 4 | NOISE | LEVEL | TYPE | CHAOS | – |
+| 5 | CROSS | FM 2 > 1 | X-MOD 1 <> 3 | RING 1 x 2 | SYNC |
+| 6 | FILTER | CUTOFF | RESONANCE | ENV AMOUNT | – |
+| 7 | ENVELOPE | ATTACK | DECAY | SUSTAIN | RELEASE |
+| 8 | LFO 1 | RATE | DEPTH | WAVE | TARGET |
+| 9 | LFO 2 | RATE | DEPTH | WAVE | TARGET |
+| 10 | RANDOM | RATE | DEPTH | SMOOTH | TARGET |
 
 ## Try it without hardware
 
