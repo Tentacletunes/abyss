@@ -19,12 +19,13 @@ knobs do the same job on every page.
 | K1–K4 | the page's four parameters (turning one makes it the big value) |
 | SELECT | turn through the pages |
 | ALGORITHM | filter cutoff, on every page |
-| PRESETS | reserved for presets (Milestone 5) |
+| PRESETS | turn through the sounds: 10 factory presets, then your saved ones (each loads as you land on it) |
 | MASTER | output level |
 | HOME | next page, round all ten |
 | EDIT / ENV | FILTER / ENVELOPE |
 | LFO | LFO 1 → LFO 2 → RANDOM |
-| FX, SAVE | FX, PRESETS pages (Milestones 4–5) |
+| SAVE | PRESETS page: K1 picks USER 1–10, press SAVE again to store the current sound |
+| FX | FX page (Milestone 4) |
 | GLO | performance mode: the current value huge |
 | PLAY | DRONE on/off (lit while on) |
 | REC | TAP: held, plays the current note |
@@ -43,6 +44,14 @@ knobs do the same job on every page.
 | 8 | LFO 1 | RATE | DEPTH | WAVE | TARGET |
 | 9 | LFO 2 | RATE | DEPTH | WAVE | TARGET |
 | 10 | RANDOM | RATE | DEPTH | SMOOTH | TARGET |
+
+## Presets
+
+Factory: 1 INDUSTRIAL DRONE · 2 METALLIC MACHINE · 3 BROKEN OSCILLATOR · 4 FEEDBACK STORM · 5 DARK AMBIENT ·
+6 DIGITAL COLLAPSE · 7 NOISE BURST · 8 RADIO INTERFERENCE · 9 SUBHARMONIC · 10 CHAOTIC MACHINE.
+Power-on plays preset 1. A sound changed since it loaded shows EDITED. User slots live in flash (two alternating
+4 KiB sectors at 0xF0000, so a power cut during a save loses only that save); a save silences the audio for
+~20 ms while the sector erases. FEEDBACK STORM and friends will be revised when the delays arrive (Milestone 4).
 
 ## Try it without hardware
 

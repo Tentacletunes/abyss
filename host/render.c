@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "abyss_tables.h"
 #include "../firmware/dsp/abyss_dsp.c"
+#include "../firmware/dsp/abyss_presets.h"
 
 static FILE *wav_open(const char *path)
 {
@@ -152,5 +153,19 @@ int main(int argc, char **argv)
         run(f, 0.05);
     }
     wav_close(f); report("09 fuzz 60 s");
+
+    /* 10: the factory presets: a held drone, then a few keys (one file each) */
+    for (k = 0; k < (int)AB_NFACTORY; k++) {
+        static const int seq[] = {45, 52, 40, 57};
+        char nm[64];
+        dsp_init();
+        ab_preset_values((uint32_t)k, ab.p);
+        snprintf(p, sizeof p, "%s/preset_%02d.wav", dir, k + 1); f = wav_open(p);
+        note(45, 1); run(f, 3.5); note(0, 0); run(f, 0.6);
+        for (i = 0; i < 4; i++) { note(seq[i], 1); run(f, 0.5); note(0, 0); run(f, 0.3); }
+        run(f, 1.5);
+        wav_close(f);
+        snprintf(nm, sizeof nm, "P%02d %s", k + 1, AB_FACTORY[k].name); report(nm);
+    }
     return 0;
 }

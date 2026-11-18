@@ -45,8 +45,18 @@ static const page_t PAGES[PG_COUNT] = {
     [PG_LFO2] = {"LFO 2", {P_L2RATE, P_L2DEPTH, P_L2WAVE, P_L2DEST}, 0},
     [PG_RAND] = {"RANDOM", {P_RRATE, P_RDEPTH, P_RSMOOTH, P_RDEST}, 0},
     [PG_FX] = {"FX", NONE4, "DISTORTION AND DUAL DELAY\nARRIVE IN MILESTONE 4"},
-    [PG_PRESET] = {"PRESETS", NONE4, "PRESETS ARRIVE\nIN MILESTONE 5"},
+    [PG_PRESET] = {"PRESETS", NONE4, 0},   /* (its own drawing: the sound's name, SAVE TO) */
 };
+
+#define FOCUS_PRESET 100                  /* the big value shows the sound's name (PRESETS was turned) */
+/* presets.c */
+#define PR_USER 10u
+static uint32_t pr_count(void);
+static uint32_t pr_entry(uint32_t i);
+static void pr_name(uint32_t e, char *b);
+static void pr_apply(uint32_t e);
+static int pr_save(uint32_t k, const int16_t *p);
+static uint16_t pr_used(void);
 
 /* matrix button ids (Felucca panel.c PANEL_DEFAULT, measured on hardware) */
 enum { BT_OCTDN = 0, BT_OCTUP = 1, BT_FX = 2, BT_SCL = 3, BT_ENV = 4, BT_LFO = 5, BT_EDIT = 6, BT_GLO = 7,
@@ -66,6 +76,12 @@ static struct {
     uint8_t full;                         /* redraw and send everything */
     char sig[3][48];                      /* what each band last showed */
     uint32_t frames;
+    uint8_t live;                         /* the main loop runs: the keys are read */
+    uint32_t pr_cur;                      /* the sound loaded: an index in the PRESETS knob's list */
+    uint8_t pr_edited;                    /* a knob moved since it loaded */
+    uint8_t pr_slot;                      /* PRESETS page: the user slot SAVE stores in */
+    uint32_t msg_ms;                      /* "SAVED": until when */
+    int8_t msg_ok;
     int32_t wave_gain;                    /* waveform display gain, Q8 */
 } ui;
 
@@ -115,6 +131,7 @@ static void param_step(int32_t pi, int32_t d)
     int32_t v = ab.p[pi] + d;
     ab.p[pi] = (int16_t)(v < p->min ? p->min : v > p->max ? p->max : v);
     ui.touched_ms = fm1_ms;
+    ui.pr_edited = 1;
 }
 
 static void page_go(uint32_t pg)
@@ -130,7 +147,21 @@ static void button(uint32_t b)
     case BT_EDIT: page_go(PG_FILTER); break;
     case BT_LFO: page_go(ui.page == PG_LFO1 ? PG_LFO2 : ui.page == PG_LFO2 ? PG_RAND : PG_LFO1); break;
     case BT_FX: page_go(PG_FX); break;
-    case BT_SAVE: page_go(PG_PRESET); break;
+    case BT_SAVE:                                  /* PRESETS; on it, SAVE stores the sound in the slot chosen */
+        if (ui.page != PG_PRESET) {
+            page_go(PG_PRESET);
+            break;
+        }
+        ui.msg_ok = (int8_t)(pr_save(ui.pr_slot, ab.p) == 0);
+        ui.msg_ms = fm1_ms + 1500u;
+        if (ui.msg_ok) {                           /* the sound is now that user slot */
+            uint32_t i;
+            for (i = 0; i < pr_count(); i++)
+                if (pr_entry(i) == 100u + ui.pr_slot)
+                    ui.pr_cur = i;
+            ui.pr_edited = 0;
+        }
+        break;
     case BT_GLO: ui.perf ^= 1u; ui.full = 1; break;
     case BT_PLAY: ab.drone ^= 1u; break;
     case BT_REC:
@@ -201,8 +232,22 @@ static void ui_poll(void)                      /* keys, buttons, knobs, MIDI: of
             page_go((uint32_t)(pg < 0 ? 0 : pg >= PG_CYCLE ? PG_CYCLE - 1 : pg));
             continue;
         }
-        if (i == EN_PRESETS)
-            continue;                              /* (Milestone 5: the presets) */
+        if (i == EN_PRESETS) {                     /* PRESETS: the sounds, loaded as they come */
+            int32_t c = (int32_t)ui.pr_cur + (s > 0 ? 1 : -1), n = (int32_t)pr_count();
+            c = c < 0 ? 0 : c >= n ? n - 1 : c;
+            if ((uint32_t)c != ui.pr_cur || ui.pr_edited) {
+                ui.pr_cur = (uint32_t)c;
+                pr_apply(pr_entry(ui.pr_cur));
+                ui.pr_edited = 0;
+            }
+            ui.focus[ui.page] = FOCUS_PRESET;
+            continue;
+        }
+        if (ui.page == PG_PRESET && i == EN_K1) {  /* PRESETS page, K1: the slot SAVE stores in */
+            int32_t k = (int32_t)ui.pr_slot + (s > 0 ? 1 : -1);
+            ui.pr_slot = (uint8_t)(k < 0 ? 0 : k >= (int32_t)PR_USER ? PR_USER - 1u : (uint32_t)k);
+            continue;
+        }
         pi = i == EN_ALGO ? P_CUTOFF : PAGES[ui.page].slot[i - EN_K1];   /* ALGORITHM: the filter, on every page */
         if (pi < 0)
             continue;
@@ -215,7 +260,11 @@ static void ui_poll(void)                      /* keys, buttons, knobs, MIDI: of
     }
     midi_poll();
 }
-static void gfx_poll(void) { ui_poll(); }
+static void gfx_poll(void)                     /* (not before the main loop: the splash is sent before the scan runs) */
+{
+    if (ui.live)
+        ui_poll();
+}
 
 static void ui_leds(void)
 {
@@ -377,6 +426,19 @@ static void draw_value(uint32_t y0)
         return;
     }
     pi = focus_of(ui.page);
+    if (pi == FOCUS_PRESET || ui.page == PG_PRESET) {   /* the sound: "PRESET 3/12", its name */
+        char lab[24], name[24], *q;
+        q = put_u(put_s(lab, "PRESET "), ui.pr_cur + 1u);
+        *q++ = '/';
+        q = put_u(q, pr_count());
+        if (ui.pr_edited)
+            put_s(q, "  EDITED");
+        pr_name(pr_entry(ui.pr_cur), name);
+        gfx_text(MX, (int32_t)y0 + 6, &F_LABEL, lab, ui.pr_edited ? C_ACC : C_DIM);
+        gfx_text(MX - 1, (int32_t)y0 + (gfx_text_w(&F_BIG, name) <= 240 - 2 * MX ? 18 : 26),
+                 gfx_text_w(&F_BIG, name) <= 240 - 2 * MX ? &F_BIG : &F_MID, name, C_INK);
+        return;
+    }
     value_text(pi, num, unit, 0);
     gfx_text(MX, (int32_t)y0 + 6, &F_LABEL, AB_P[pi].label, C_DIM);
     if (ui.perf) {                                 /* the number huge, the unit beside it */
@@ -449,6 +511,20 @@ static void draw_lower(uint32_t y0)
     if (pg->later)
         return;
     gfx_fill(MX, y + 3, 240 - 2 * MX, 1, C_RULE);
+    if (ui.page == PG_PRESET) {                    /* SAVE TO: a user slot, K1 chooses; SAVE stores */
+        char t[24];
+        int32_t x;
+        gfx_text(MX, y + 12, &F_LABEL, "SAVE TO", C_ACC);
+        put_u(put_s(t, "USER "), ui.pr_slot + 1u);
+        x = gfx_text(MX - 1, y + 26, &F_MID, t, C_INK);
+        gfx_text(x + 8, y + 26 + F_MID.asc - F_LABEL.asc - 3, &F_LABEL,
+                 (pr_used() >> ui.pr_slot) & 1u ? "REPLACES" : "EMPTY", C_DIM);
+        if (fm1_ms < ui.msg_ms)
+            gfx_text(MX, y + 70, &F_MID, ui.msg_ok ? "SAVED" : "NOT SAVED", ui.msg_ok ? C_ACC : C_INK);
+        else
+            draw_lines(MX, y + 64, "K1 CHOOSES THE SLOT\nPRESS SAVE TO STORE", &F_LABEL, C_DIM, 17);
+        return;
+    }
     for (i = 0; i < 4; i++)
         if (pg->slot[i] >= 0)
             draw_cell(MX + (i & 1) * 108, y + 12 + (i >> 1) * 50, pg->slot[i], f);
@@ -464,6 +540,15 @@ static void band_sig(uint32_t b, char *s)
     *p++ = (char)('0' + ui.perf);
     if (b == B_HEAD) {
         *p++ = (char)('0' + ab.drone);
+    } else if (b == B_VALUE && (f == FOCUS_PRESET || ui.page == PG_PRESET)) {
+        *p++ = 'P';
+        *p++ = (char)('a' + ui.pr_cur);
+        *p++ = (char)('0' + ui.pr_edited);
+    } else if (b == B_LOWER && ui.page == PG_PRESET) {
+        *p++ = (char)('a' + ui.pr_slot);
+        *p++ = (char)('0' + (fm1_ms < ui.msg_ms) + 2 * ui.msg_ok);
+        *p++ = (char)('a' + (pr_used() & 63u));
+        *p++ = (char)('a' + (pr_used() >> 6));
     } else if (b == B_VALUE && !pg->later) {
         char num[16], unit[8];
         *p++ = (char)('a' + f);

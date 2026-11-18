@@ -31,6 +31,7 @@
 #include "abyss_tables.h"
 #include "abyss_fonts.h"
 #include "../dsp/abyss_dsp.c"
+#include "../dsp/abyss_presets.h"
 #include "gfx.c"
 #include "ui.c"
 
@@ -168,6 +169,14 @@ static void ota_commit(const uint8_t *parm)
     fm1_enter_update(parm);
 }
 
+static void audio_silence(void)                /* (interrupts off) the DMA would loop stale audio: a buzz */
+{
+    uint32_t i;
+    for (i = 0; i < 2u * HALF_WORDS; i++)
+        abuf[i] = 0;
+}
+#include "presets.c"
+
 /* a fault: a red screen with the address, then a reset; the record survives in fm1_crash */
 static void fm1_fault(const fm1_crash_t *c)
 {
@@ -240,6 +249,9 @@ static void app_main(void)
     }
     dsp_init();
     ui_init();
+    pr_boot();                                 /* the user slots from flash; power-on plays factory preset 1 */
+    pr_apply(pr_entry(0));
+    ui.focus[PG_OSC1] = FOCUS_PRESET;          /* (the screen opens on the sound's name) */
     lcd_init();
     splash();
     lcd_cmd(0x29);                             /* DISPON */
@@ -253,7 +265,15 @@ static void app_main(void)
     fm1_lcd_backlight(1);
     while (fm1_ms < 900u)                      /* the splash */
         fm1_wdt_feed();
+    {                                          /* what the scan settled on meanwhile is not a turn, nor a press */
+        uint32_t i, rel;
+        for (i = 0; i < FM1_NENC; i++)
+            (void)fm1_enc_take(i);
+        (void)fm1_input_edges(&rel);
+        ui.keys = fm1_in.notes;
+    }
     ui.full = 1;
+    ui.live = 1;
     for (;;) {
         uint32_t now = fm1_ms;
         fm1_wdt_feed();
