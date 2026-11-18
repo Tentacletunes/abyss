@@ -359,7 +359,7 @@ static void dsp_render(int32_t *out, uint32_t n)        /* n == AB_BLOCK; out: L
     dwet = ab.p[P_DMIX] * 32767 / 100;
     if (dtype <= X_FUZZ) {                       /* the clippers sit near full scale: back towards the voice's level */
         int32_t d = ab_clamp(ab.p[P_DRIVE] + ((mod[D_DRIVE] * 50) >> 15), 0, 100);
-        dwet = dwet * (100 - (d < 40 ? d : 40)) / 100;
+        dwet = dwet * (100 - (d < 40 ? d : 40) - (d > 40 ? (d - 40) / 4 : 0)) / 100;   /* 100: x 0.45 */
     }
     dmode = (uint32_t)ab.p[P_DMODE];
     for (k = 0; k < 2u; k++) {
