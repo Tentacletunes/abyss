@@ -5,7 +5,7 @@
  *   K1..K4, SELECT, ALGORITHM, PRESETS   the page's seven parameters, in that order
  *   MASTER pot                            output level
  *   HOME   MAIN (again: CROSS -> SHAPE -> LEVELS -> MAIN)     ENV   envelope        EDIT  FILTER
- *   LFO    MOD (again: ROUTING)                     FX    FX (Milestone 4) SAVE  PRESETS (Milestone 5)
+ *   LFO    LFO 1 -> LFO 2 -> RANDOM                 FX    DRIVE -> DELAY 1 -> DELAY 2 -> DELAYS    SAVE  PRESETS
  *   GLO    performance mode: the last touched value, huge
  *   PLAY   DRONE on / off: the voice sounds without a key
  *   REC    TAP: held, it plays the current note (APTBS's tap pad)
@@ -24,9 +24,9 @@
 /* ------------------------------------------------------------- pages --- */
 /* One topic a page, four parameters on K1..K4. HOME steps through the pages, SELECT turns through them; the left
  * knobs keep one job each everywhere: SELECT the page, ALGORITHM the filter, PRESETS (Milestone 5) the presets */
-enum { PG_OSC1, PG_OSC2, PG_OSC3, PG_NOISE, PG_CROSS, PG_FILTER, PG_ENV, PG_LFO1, PG_LFO2, PG_RAND,
-       PG_FX, PG_PRESET, PG_COUNT };
-#define PG_CYCLE PG_FX                    /* HOME and SELECT go round the pages before this one */
+enum { PG_OSC1, PG_OSC2, PG_OSC3, PG_NOISE, PG_CROSS, PG_FILTER, PG_ENV, PG_DRIVE, PG_DLY1, PG_DLY2, PG_DLYS,
+       PG_LFO1, PG_LFO2, PG_RAND, PG_PRESET, PG_COUNT };
+#define PG_CYCLE PG_PRESET                /* HOME and SELECT go round the pages before this one */
 typedef struct {
     const char *tag;                      /* the page's name, top right */
     int8_t slot[4];                       /* K1 K2 K3 K4 -> parameter, -1 none */
@@ -39,12 +39,15 @@ static const page_t PAGES[PG_COUNT] = {
     [PG_OSC3] = {"OSC 3", {P_OSC3, P_WAVE3, P_LVL3, P_PW}, 0},
     [PG_NOISE] = {"NOISE", {P_NOISE, P_NTYPE, P_CHAOS, -1}, 0},
     [PG_CROSS] = {"CROSS", {P_FM, P_XMOD, P_RING, P_SYNC}, 0},
-    [PG_FILTER] = {"FILTER", {P_CUTOFF, P_RES, P_ENVF, -1}, 0},
+    [PG_FILTER] = {"FILTER", {P_CUTOFF, P_RES, P_ENVF, P_FTYPE}, 0},
     [PG_ENV] = {"ENVELOPE", {P_ATK, P_DEC, P_SUS, P_REL}, 0},
+    [PG_DRIVE] = {"DRIVE", {P_DTYPE, P_DRIVE, P_DTONE, P_DMIX}, 0},
+    [PG_DLY1] = {"DELAY 1", {P_T1, P_FB1, P_MOD1, P_PAN1}, 0},
+    [PG_DLY2] = {"DELAY 2", {P_T2, P_FB2, P_MOD2, P_PAN2}, 0},
+    [PG_DLYS] = {"DELAYS", {P_WET, P_XFB, P_DLTONE, P_DMODE}, 0},
     [PG_LFO1] = {"LFO 1", {P_L1RATE, P_L1DEPTH, P_L1WAVE, P_L1DEST}, 0},
     [PG_LFO2] = {"LFO 2", {P_L2RATE, P_L2DEPTH, P_L2WAVE, P_L2DEST}, 0},
     [PG_RAND] = {"RANDOM", {P_RRATE, P_RDEPTH, P_RSMOOTH, P_RDEST}, 0},
-    [PG_FX] = {"FX", NONE4, "DISTORTION AND DUAL DELAY\nARRIVE IN MILESTONE 4"},
     [PG_PRESET] = {"PRESETS", NONE4, 0},   /* (its own drawing: the sound's name, SAVE TO) */
 };
 
@@ -146,7 +149,9 @@ static void button(uint32_t b)
     case BT_ENV: page_go(PG_ENV); break;
     case BT_EDIT: page_go(PG_FILTER); break;
     case BT_LFO: page_go(ui.page == PG_LFO1 ? PG_LFO2 : ui.page == PG_LFO2 ? PG_RAND : PG_LFO1); break;
-    case BT_FX: page_go(PG_FX); break;
+    case BT_FX:                                    /* DRIVE -> DELAY 1 -> DELAY 2 -> DELAYS */
+        page_go(ui.page >= PG_DRIVE && ui.page < PG_DLYS ? ui.page + 1u : PG_DRIVE);
+        break;
     case BT_SAVE:                                  /* PRESETS; on it, SAVE stores the sound in the slot chosen */
         if (ui.page != PG_PRESET) {
             page_go(PG_PRESET);
@@ -269,7 +274,7 @@ static void gfx_poll(void)                     /* (not before the main loop: the
 static void ui_leds(void)
 {
     static const uint8_t PAGE_BTN[PG_COUNT] = {BT_HOME, BT_HOME, BT_HOME, BT_HOME, BT_HOME, BT_EDIT, BT_ENV,
-                                               BT_LFO, BT_LFO, BT_LFO, BT_FX, BT_SAVE};
+                                               BT_FX, BT_FX, BT_FX, BT_FX, BT_LFO, BT_LFO, BT_LFO, BT_SAVE};
     uint32_t i;
     for (i = 0; i < 14u; i++) {
         uint32_t on = i == PAGE_BTN[ui.page] || (i == BT_PLAY && ab.drone) || (i == BT_GLO && ui.perf) ||
@@ -350,6 +355,19 @@ static void value_text(int32_t pi, char *num, char *unit, uint32_t brief)
     case FMT_SYNC: put_s(num, brief ? AB_SYNC_BRIEF[v] : AB_SYNC_NAME[v]); break;
     case FMT_LWAVE: put_s(num, brief ? AB_LWAVE_BRIEF[v] : AB_LWAVE_NAME[v]); break;
     case FMT_DEST: put_s(num, brief ? AB_DEST_BRIEF[v] : AB_DEST_NAME[v]); break;
+    case FMT_FTYPE: put_s(num, brief ? AB_FTYPE_BRIEF[v] : AB_FTYPE_NAME[v]); break;
+    case FMT_DTYPE: put_s(num, brief ? AB_DTYPE_BRIEF[v] : AB_DTYPE_NAME[v]); break;
+    case FMT_DMODE: put_s(num, AB_DMODE_NAME[v]); break;
+    case FMT_PAN:
+        if (!v) { put_s(num, "CENTER"); break; }
+        put_u(put_s(num, v < 0 ? "L " : "R "), (uint32_t)(v < 0 ? -v : v));
+        break;
+    case FMT_DTIME: {
+        uint32_t m10 = AB_DTIME_MS10[v];
+        if (m10 >= 10000u) { put_fix(num, m10, 10000u, 2u); put_s(unit, brief ? "s" : " s"); }
+        else { put_u(num, (m10 + 5u) / 10u); put_s(unit, brief ? "ms" : " ms"); }
+        break;
+    }
     case FMT_LFOHZ: {
         uint32_t h = AB_LFO_HZ100[v];
         if (h < 100u && !brief) put_fix(num, h, 100u, 2u);
@@ -450,14 +468,18 @@ static void draw_value(uint32_t y0)
             x = gfx_text(MX - 3, (int32_t)y0 + 14, &F_HUGE, num, C_INK);
             gfx_text(x + 3, (int32_t)y0 + 14 + F_HUGE.asc - F_MID.asc - 12, &F_MID, unit, C_ACC);
         } else {
-            x = gfx_text(MX - 1, (int32_t)y0 + 34, &F_BIG, num, C_INK);
-            gfx_text(x, (int32_t)y0 + 34, &F_BIG, unit, C_INK);
+            const ab_font_t *f = gfx_text_w(&F_BIG, num) + gfx_text_w(&F_BIG, unit) <= 240 - 2 * MX ? &F_BIG : &F_MID;
+            x = gfx_text(MX - 1, (int32_t)y0 + 34, f, num, C_INK);
+            gfx_text(x, (int32_t)y0 + 34, f, unit, C_INK);
         }
         return;
     }
-    {
-        int32_t x = gfx_text(MX - 1, (int32_t)y0 + 18, &F_BIG, num, C_INK);
-        gfx_text(x, (int32_t)y0 + 18, &F_BIG, unit, C_INK);
+    {                                              /* a long name ("BAND PASS") in the smaller face, lower */
+        int32_t fits = gfx_text_w(&F_BIG, num) + gfx_text_w(&F_BIG, unit) <= 240 - 2 * MX;
+        const ab_font_t *f = fits ? &F_BIG : &F_MID;
+        int32_t y = (int32_t)y0 + (fits ? 18 : 28);
+        int32_t x = gfx_text(MX - 1, y, f, num, C_INK);
+        gfx_text(x, y, f, unit, C_INK);
     }
 }
 

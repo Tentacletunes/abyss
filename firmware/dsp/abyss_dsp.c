@@ -48,7 +48,22 @@ static struct {
     int32_t brown;               /* brown noise integrator */
     uint32_t nph, lfsr;          /* DIGITAL / METAL: the register's clock and the register */
     int32_t crk;                 /* CRACKLE: the decaying impulse */
+    int32_t dtone, hold;         /* DRIVE: its tone filter; DECIMATE's held sample */
+    uint32_t hold_n;
+    uint32_t wc;                 /* delays: samples written (full rate; the lines store every other one) */
+    int32_t acc[2];              /* delays: the pair being averaged into one stored sample */
+    uint32_t dcur[2];            /* delays: the time now, half-rate samples Q16 (it glides: the PT2399 pitch bend) */
+    int32_t ftone[2], dc[2];     /* delays: the feedback path's low-pass and DC blocker */
+    uint32_t wob_ph[2];          /* delays: WOBBLE's slow sine */
+    int32_t wob_rnd[2];          /* delays: WOBBLE's flutter */
 } st;
+
+/* the two delay lines: 32768 samples at FS / 2 each (1.48 s, the top 11 kHz gone: lo-fi, as the PT2399 is) */
+#ifndef AB_POOL
+#define AB_POOL
+#endif
+#define AB_DL_N 32768u
+static int16_t ab_dl[2][AB_DL_N] AB_POOL;
 
 static int16_t ab_scope[AB_SCOPE_N];   /* the output, every other sample: the UI's waveform */
 static volatile uint32_t ab_scope_w;
@@ -72,14 +87,17 @@ static uint32_t ab_pitch_inc(int32_t p)          /* 1/64 semitone from MIDI 0 ->
 static inline int32_t ab_blep(uint32_t ph, uint32_t inc, uint32_t div)
 {
     int32_t t;
+    uint32_t q;
+    if (!inc)                                    /* (FM through zero: a stopped phase has no edge) */
+        return 0;
     if (ph < inc) {
-        t = (int32_t)(ph / div);
-        if (t > 32767) t = 32767;
+        q = ph / div;
+        t = q > 32767u ? 32767 : (int32_t)q;
         return 2 * t - ((t * t) >> 15) - 32768;
     }
     if (ph > 0u - inc) {
-        t = (int32_t)((0u - ph) / div);
-        if (t > 32767) t = 32767;
+        q = (0u - ph) / div;
+        t = q > 32767u ? 32767 : (int32_t)q;
         return ((t * t) >> 15) - 2 * t + 32768;
     }
     return 0;
@@ -163,6 +181,8 @@ static void dsp_init(void)
     for (i = 0; i < sizeof st; i++)
         z[i] = 0;
     ab.gate = ab.drone = 0;
+    for (i = 0; i < 2u * AB_DL_N; i++)
+        ab_dl[i / AB_DL_N][i % AB_DL_N] = 0;
     st.last_trig = ab.trig;
     for (i = 0; i < P_COUNT; i++)
         ab.p[i] = AB_P[i].def;
@@ -221,6 +241,9 @@ static void dsp_render(int32_t *out, uint32_t n)        /* n == AB_BLOCK; out: L
     uint32_t i, k, inc[3], sinc, sdiv, pw, w[3], nt, sync, ratio[3], ninc;
     int32_t base, g_t[5], mixa, mixb, f_t, damp, cut, e0, e1, l0, l1, master, mod[D_COUNT], dsum_lvl;
     int32_t fm, xm, ring, chaos, res, noise;
+    uint32_t ftype, dtype, dhold, dsh, dmode;
+    int32_t dg, dtk, ddry, dwet, fb[2], xfb, ltk, wdry, wwet, gl[2], gr[2];
+    uint32_t tgt[2];
 
     /* ---- modulation sources ---- */
     for (k = 0; k < D_COUNT; k++)
@@ -322,9 +345,48 @@ static void dsp_render(int32_t *out, uint32_t n)        /* n == AB_BLOCK; out: L
     st.lvl = l1;
     master = ab.master;
 
+    /* ---- DRIVE, DELAYS: control rate ---- */
+    ftype = (uint32_t)ab.p[P_FTYPE];
+    dtype = (uint32_t)ab.p[P_DTYPE];
+    {
+        int32_t d = ab_clamp(ab.p[P_DRIVE] + ((mod[D_DRIVE] * 50) >> 15), 0, 100);
+        dg = AB_DRIVE_G[d];
+        dsh = (uint32_t)(d * 14 / 100);          /* CRUSH: bits taken off, 0 .. 14 */
+        dhold = 1u + (uint32_t)(d * d / 200);    /* DECIMATE: one sample kept of 1 .. 51 */
+    }
+    dtk = AB_TONE_K[ab.p[P_DTONE]] >> 1;         /* Q14 */
+    ddry = (100 - ab.p[P_DMIX]) * 32767 / 100;
+    dwet = ab.p[P_DMIX] * 32767 / 100;
+    if (dtype <= X_FUZZ) {                       /* the clippers sit near full scale: back towards the voice's level */
+        int32_t d = ab_clamp(ab.p[P_DRIVE] + ((mod[D_DRIVE] * 50) >> 15), 0, 100);
+        dwet = dwet * (100 - (d < 40 ? d : 40)) / 100;
+    }
+    dmode = (uint32_t)ab.p[P_DMODE];
+    for (k = 0; k < 2u; k++) {
+        static const uint8_t T[2] = {P_T1, P_T2}, FB[2] = {P_FB1, P_FB2}, MD[2] = {P_MOD1, P_MOD2},
+                             PN[2] = {P_PAN1, P_PAN2};
+        static const uint32_t WOB_INC[2] = {2000000u, 2900000u};   /* ~0.6 and ~0.9 Hz a block */
+        uint32_t t = AB_DTIME_Q16[ab.p[T[k]]];
+        int32_t h = (int32_t)(t >> 16), w;
+        h += (h * (mod[D_DTIME] >> 1)) >> 15;    /* modulation: +-50 % */
+        st.wob_ph[k] += WOB_INC[k];
+        st.wob_rnd[k] += (((int32_t)ab_rand() >> 16) - st.wob_rnd[k]) >> 4;
+        w = ((AB_SINE[st.wob_ph[k] >> 22] + st.wob_rnd[k]) * ab.p[MD[k]] * 3) >> 8;   /* 100 %: ~ +-2.5 % */
+        h += (h * (w >> 2)) >> 15;
+        h = ab_clamp(h, 4, (int32_t)AB_DL_N - 800);
+        tgt[k] = (uint32_t)h << 16;
+        fb[k] = ab_clamp(ab.p[FB[k]] + ((mod[D_FDBK] * 50) >> 15), 0, 110) * 32767 / 100;
+        gl[k] = (100 - ab.p[PN[k]]) * 32767 / 200;
+        gr[k] = (100 + ab.p[PN[k]]) * 32767 / 200;
+    }
+    xfb = ab.p[P_XFB] * 229;                     /* 100 % = 0.7 */
+    ltk = AB_TONE_K[ab.p[P_DLTONE]] >> 1;        /* Q14 */
+    wdry = ab.p[P_WET] <= 50 ? 32767 : (100 - ab.p[P_WET]) * 32767 / 50;
+    wwet = ab.p[P_WET] >= 50 ? 32767 : ab.p[P_WET] * 32767 / 50;
+
     /* ---- audio rate ---- */
     for (i = 0; i < n; i++) {
-        int32_t s, x, hp, nz, e, f2, i0, i1, i2;
+        int32_t s, x, hp = 0, nz, e, f2, i0, i1, i2;
         uint32_t r = ab_rand(), p0;
         nz = (int32_t)r >> 16;                   /* white, Q15 */
 
@@ -396,16 +458,79 @@ static void dsp_render(int32_t *out, uint32_t n)        /* n == AB_BLOCK; out: L
             st.bp = ab_clamp(st.bp, -65535, 65535);
             st.lp = ab_clamp(st.lp, -65535, 65535);
         }
-        x = st.lp;
+        x = ftype == F_LP ? st.lp : ftype == F_BP ? st.bp : ab_clamp(hp, -65535, 65535);
 
         e = e0 + (((e1 - e0) * (int32_t)i) >> 5);  /* the envelope ramped over the block */
         x = (x * e) >> 15;
         e = l0 + (((l1 - l0) * (int32_t)i) >> 5);  /* LEVEL modulation, ramped too */
         x = (x * e) >> 15;
-        x = ab_softclip(x);
-        x = (x * master) >> 15;
-        out[2u * i] = x;
-        out[2u * i + 1u] = x;
+
+        /* DRIVE: the pedal after the voice */
+        {
+            int32_t v = (x * dg) >> 8, y;
+            switch (dtype) {
+            case X_SOFT: y = ab_softclip(v); break;
+            case X_HARD: y = ab_clamp(v, -32767, 32767); break;
+            case X_FOLD: {                       /* a triangle fold: over the top, back down */
+                int32_t u = (v + 32768) & 0x1FFFF;
+                y = u < 65536 ? u - 32768 : 98304 - u;
+                break;
+            }
+            case X_FUZZ:                         /* asymmetric: round on top, flat at the bottom (LM386-ish) */
+                y = v > 0 ? ab_softclip(v) : (v < -22000 ? -22000 : v);
+                break;
+            case X_CRUSH: y = (ab_clamp(x, -32767, 32767) >> dsh) * (1 << dsh); break;
+            default:                             /* DECIMATE */
+                if (++st.hold_n >= dhold) {
+                    st.hold_n = 0;
+                    st.hold = x;
+                }
+                y = st.hold;
+                break;
+            }
+            y = ab_clamp(y, -65535, 65535);
+            st.dtone += ((y - st.dtone) * dtk) >> 14;
+            x = ((x * ddry) >> 15) + ((st.dtone * dwet) >> 15);
+        }
+
+        /* DELAYS: two lines, each with its feedback; SERIES feeds 1 into 2 (APTBS), PARALLEL gives both the
+         * voice. CROSS FEEDBACK sends each back into the other. The feedback path is darkened (TONE), DC-blocked
+         * and soft-clipped as it is written: above 100 % it runs away into a bounded roar, never past full scale */
+        {
+            int32_t wv[2], in[2], L, R;
+            uint32_t q;
+            for (q = 0; q < 2u; q++) {
+                uint32_t rp, idx;
+                int32_t a, b;
+                st.dcur[q] += (uint32_t)((int32_t)(tgt[q] - st.dcur[q]) >> 11);   /* the time glides */
+                rp = (st.wc << 15) - st.dcur[q];
+                idx = (rp >> 16) & (AB_DL_N - 1u);
+                a = ab_dl[q][idx];
+                b = ab_dl[q][(idx + 1u) & (AB_DL_N - 1u)];
+                wv[q] = a + (((b - a) * (int32_t)((rp >> 1) & 0x7FFFu)) >> 15);
+            }
+            in[0] = x + ((wv[0] * fb[0]) >> 15) + ((wv[1] * xfb) >> 15);
+            in[1] = (dmode == DM_SERIES ? wv[0] : x + ((wv[0] * xfb) >> 15)) + ((wv[1] * fb[1]) >> 15);
+            for (q = 0; q < 2u; q++) {
+                int32_t v = ab_clamp(in[q], -65535, 65535);
+                st.ftone[q] += ((v - st.ftone[q]) * ltk) >> 14;
+                v = st.ftone[q] - (st.dc[q] >> 8);       /* (the blocker's state in Q8: no dead band) */
+                st.dc[q] += (st.ftone[q] * 256 - st.dc[q]) >> 10;
+                st.acc[q] += ab_softclip(v);
+                if (st.wc & 1u) {
+                    ab_dl[q][(st.wc >> 1) & (AB_DL_N - 1u)] = (int16_t)ab_clamp(st.acc[q] >> 1, -32767, 32767);
+                    st.acc[q] = 0;
+                }
+            }
+            st.wc++;
+            L = ((x * wdry) >> 15) + (((((wv[0] * gl[0]) >> 15) + ((wv[1] * gl[1]) >> 15)) * wwet) >> 15);
+            R = ((x * wdry) >> 15) + (((((wv[0] * gr[0]) >> 15) + ((wv[1] * gr[1]) >> 15)) * wwet) >> 15);
+            L = (ab_softclip(L) * master) >> 15;
+            R = (ab_softclip(R) * master) >> 15;
+            out[2u * i] = L;
+            out[2u * i + 1u] = R;
+            x = (L + R) >> 1;
+        }
         if (i & 1u)
             ab_scope[ab_scope_w++ & (AB_SCOPE_N - 1u)] = (int16_t)x;
         if (x < 0)

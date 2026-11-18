@@ -48,6 +48,18 @@ def main(out):
     L.append("static const uint32_t AB_LFO_INC[128] = {" +
              ",".join(f"{round(h * 32 / FS * 2 ** 32)}u" for h in lhz) + "};")
     L.append("static const uint32_t AB_LFO_HZ100[128] = {" + ",".join(f"{round(h * 100)}u" for h in lhz) + "};")
+    # DRIVE 0..100 -> gain Q8, 1 .. ~47
+    L.append("static const uint16_t AB_DRIVE_G[101] = {" + ",".join(str(round(256 * 2 ** (d / 18))) for d in range(101)) + "};")
+    # TONE 0..100 -> one-pole low-pass coefficient Q15, 400 Hz .. 18 kHz (100 = open)
+    tk = []
+    for t in range(101):
+        fc = 400 * (18000 / 400) ** (t / 100)
+        tk.append(min(32767, round(32768 * (1 - math.exp(-2 * math.pi * fc / FS)))))
+    L.append("static const uint16_t AB_TONE_K[101] = {" + ",".join(map(str, tk)) + "};")
+    # delay TIME 0..127 -> 20 ms .. 1400 ms; in half-rate samples Q16 (the lines run at FS / 2) and in ms x 10
+    dt = [0.020 * (1.400 / 0.020) ** (k / 127) for k in range(128)]
+    L.append("static const uint32_t AB_DTIME_Q16[128] = {" + ",".join(f"{round(t * FS / 2 * 65536)}u" for t in dt) + "};")
+    L.append("static const uint32_t AB_DTIME_MS10[128] = {" + ",".join(f"{round(t * 10000)}u" for t in dt) + "};")
     ms = [round(1000 * 0.001 * (10000 ** (k / 127)) * 10) for k in range(128)]
     L.append("static const uint32_t AB_ENV_MS10[128] = {" + ",".join(f"{v}u" for v in ms) + "};")
     open(out, "w").write("\n".join(L) + "\n")

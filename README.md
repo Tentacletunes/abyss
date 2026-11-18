@@ -3,7 +3,7 @@
 Experimental noise synthesizer firmware for the M-VAVE FM-1, inspired by Death By Audio's APTBS Synthesizer.
 Built on [felucca-bsp](https://github.com/hugelton/felucca-bsp) and Felucca's build tools.
 
-**Status: Milestone 3** — three oscillators with FM, cross mod, ring mod, hard sync and CHAOS; six noise types;
+**Status: Milestone 4** (drive, filter types, dual feedback delay, stereo) on top of Milestone 3: — three oscillators with FM, cross mod, ring mod, hard sync and CHAOS; six noise types;
 mixer, filter, envelope; two LFOs and a random sample-and-hold with routing; keyboard and USB-MIDI playback, drone
 mode, the minimal UI with performance mode. See `docs/ARCHITECTURE.md`.
 
@@ -21,11 +21,11 @@ knobs do the same job on every page.
 | ALGORITHM | filter cutoff, on every page |
 | PRESETS | turn through the sounds: 10 factory presets, then your saved ones (each loads as you land on it) |
 | MASTER | output level |
-| HOME | next page, round all ten |
+| HOME | next page, round all fourteen |
 | EDIT / ENV | FILTER / ENVELOPE |
 | LFO | LFO 1 → LFO 2 → RANDOM |
 | SAVE | PRESETS page: K1 picks USER 1–10, press SAVE again to store the current sound |
-| FX | FX page (Milestone 4) |
+| FX | DRIVE → DELAY 1 → DELAY 2 → DELAYS |
 | GLO | performance mode: the current value huge |
 | PLAY | DRONE on/off (lit while on) |
 | REC | TAP: held, plays the current note |
@@ -39,11 +39,15 @@ knobs do the same job on every page.
 | 3 | OSC 3 | TUNE | WAVE | LEVEL | PULSE WIDTH |
 | 4 | NOISE | LEVEL | TYPE | CHAOS | – |
 | 5 | CROSS | FM 2 > 1 | X-MOD 1 <> 3 | RING 1 x 2 | SYNC |
-| 6 | FILTER | CUTOFF | RESONANCE | ENV AMOUNT | – |
+| 6 | FILTER | CUTOFF | RESONANCE | ENV AMOUNT | TYPE (LP/BP/HP) |
 | 7 | ENVELOPE | ATTACK | DECAY | SUSTAIN | RELEASE |
-| 8 | LFO 1 | RATE | DEPTH | WAVE | TARGET |
-| 9 | LFO 2 | RATE | DEPTH | WAVE | TARGET |
-| 10 | RANDOM | RATE | DEPTH | SMOOTH | TARGET |
+| 8 | DRIVE | TYPE | DRIVE | TONE | MIX |
+| 9 | DELAY 1 | TIME | FEEDBACK | WOBBLE | PAN |
+| 10 | DELAY 2 | TIME | FEEDBACK | WOBBLE | PAN |
+| 11 | DELAYS | WET/DRY | X-FEEDBACK | TONE | ROUTING |
+| 12 | LFO 1 | RATE | DEPTH | WAVE | TARGET |
+| 13 | LFO 2 | RATE | DEPTH | WAVE | TARGET |
+| 14 | RANDOM | RATE | DEPTH | SMOOTH | TARGET |
 
 ## Presets
 
@@ -51,7 +55,7 @@ Factory: 1 INDUSTRIAL DRONE · 2 METALLIC MACHINE · 3 BROKEN OSCILLATOR · 4 FE
 6 DIGITAL COLLAPSE · 7 NOISE BURST · 8 RADIO INTERFERENCE · 9 SUBHARMONIC · 10 CHAOTIC MACHINE.
 Power-on plays preset 1. A sound changed since it loaded shows EDITED. User slots live in flash (two alternating
 4 KiB sectors at 0xF0000, so a power cut during a save loses only that save); a save silences the audio for
-~20 ms while the sector erases. FEEDBACK STORM and friends will be revised when the delays arrive (Milestone 4).
+~20 ms while the sector erases. The factory sounds use the drive and delays.
 
 ## Try it without hardware
 

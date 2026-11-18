@@ -1,4 +1,4 @@
-# ABYSS — architecture (Milestones 1–3)
+# ABYSS — architecture (Milestones 1–4)
 
 ## Hardware, as verified from source
 
@@ -67,7 +67,24 @@ block. Notes go through `ab.note / ab.gate / ab.trig`.
   bent further; outputs are clamped before they modulate. The host test now runs under UBSan with a 60-second
   random-parameter fuzz: no overflow, no undefined behaviour.
 
+## Milestone 4: effects
+
+`voice → FILTER (LP / BP / HP) → VCA → DRIVE → DELAY 1, DELAY 2 → stereo → soft clip → MASTER`
+
+* **DRIVE**: SOFT (cubic), HARD, FOLD (triangle wavefolder), FUZZ (asymmetric, LM386-ish), CRUSH (2–16 bits),
+  DECIMATE (sample hold 1–51); TONE (one-pole, 400 Hz–18 kHz) and MIX. The clippers' output is trimmed as DRIVE rises.
+* **DELAYS**: two lines of 32 768 int16 samples stored at FS/2 (1.48 s each, the top above 11 kHz gone, as a PT2399 —
+  128 KiB of the pool). TIME 20 ms–1.4 s; the read position glides (~50 ms) so moving TIME bends the pitch.
+  FEEDBACK to 110 %, WOBBLE (slow sine + flutter on the time), PAN. ROUTING SERIES (1 into 2, the APTBS way) or
+  PARALLEL; CROSS FEEDBACK sends each line into the other. The feedback path is low-passed (TONE), DC-blocked and
+  soft-clipped as it is written: above 100 % it self-oscillates into a bounded roar and decays to silence once
+  the feedback comes down (host test 13). WET/DRY balances voice and echoes.
+* New modulation targets: DRIVE, DELAY TIME (both, ±50 %), FEEDBACK (both, ±50 %).
+
 ## Measurements (fm1-emu, 240 MHz model)
+
+* Milestone 4, FEEDBACK STORM preset playing with drive and both delays, the UI busy: **~12 % CPU**, 358 µs worst
+  half-buffer of 2 900, 0 late halves. RAM: 15 KiB variables, 241 KiB pool (frame buffer + delay lines) of 360.
 
 * Milestone 3, everything on (FM, cross mod, ring, sync, chaos, three modulators): **~6.5 % CPU**, 191 µs worst
   half-buffer, 0 late halves.

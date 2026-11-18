@@ -167,5 +167,37 @@ int main(int argc, char **argv)
         wav_close(f);
         snprintf(nm, sizeof nm, "P%02d %s", k + 1, AB_FACTORY[k].name); report(nm);
     }
+
+    /* 11: Milestone 4 - drive types, delays, runaway feedback */
+    dsp_init();
+    snprintf(p, sizeof p, "%s/11_drive.wav", dir); f = wav_open(p);
+    ab.drone = 1; ab.note = 45; ab.p[P_CUTOFF] = 100;
+    for (k = 0; k < X_COUNT; k++) {
+        char nm[40];
+        int d;
+        ab.p[P_DTYPE] = (int16_t)k;
+        for (d = 0; d <= 100; d += 4) { ab.p[P_DRIVE] = (int16_t)d; run(f, 0.05); }
+        snprintf(nm, sizeof nm, "11 drive %s", AB_DTYPE_NAME[k]); report(nm);
+    }
+    wav_close(f);
+    for (k = 0; k < F_COUNT; k++) {               /* filter types */
+        char nm[40];
+        dsp_init(); ab.drone = 1; ab.note = 45; ab.p[P_FTYPE] = (int16_t)k; ab.p[P_RES] = 60; ab.p[P_CUTOFF] = 80;
+        snprintf(p, sizeof p, "%s/12_filter_%d.wav", dir, k); f = wav_open(p); run(f, 1.0); wav_close(f);
+        snprintf(nm, sizeof nm, "12 filter %s", AB_FTYPE_NAME[k]); report(nm);
+    }
+    dsp_init();
+    snprintf(p, sizeof p, "%s/13_delays.wav", dir); f = wav_open(p);
+    ab.p[P_WET] = 50; ab.p[P_DEC] = 40; ab.p[P_SUS] = 0; ab.p[P_REL] = 40;
+    for (i = 0; i < 4; i++) { note(45 + i * 5, 1); run(f, 0.15); note(0, 0); run(f, 0.6); }
+    run(f, 2.0); report("13a series echoes");
+    ab.p[P_DMODE] = DM_PARALLEL; ab.p[P_PAN1] = -100; ab.p[P_PAN2] = 100; ab.p[P_XFB] = 60;
+    note(52, 1); run(f, 0.15); note(0, 0); run(f, 3.0); report("13b parallel ping-pong");
+    ab.p[P_FB1] = 110; ab.p[P_FB2] = 110; ab.p[P_XFB] = 100; ab.p[P_WET] = 100; ab.p[P_MOD1] = ab.p[P_MOD2] = 100;
+    note(40, 1); run(f, 0.2); note(0, 0);
+    for (k = 0; k < 40; k++) { ab.p[P_T1] = (int16_t)(40 + (k * 7) % 80); run(f, 0.15); }
+    report("13c runaway, time moved");
+    ab.p[P_FB1] = ab.p[P_FB2] = 0; ab.p[P_XFB] = 0; run(f, 3.0); report("13d after: decays to silence");
+    wav_close(f);
     return 0;
 }

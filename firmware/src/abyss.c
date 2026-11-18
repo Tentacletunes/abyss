@@ -30,6 +30,7 @@
 
 #include "abyss_tables.h"
 #include "abyss_fonts.h"
+#define AB_POOL __attribute__((section(".pool")))   /* the delay lines: the big zeroed RAM */
 #include "../dsp/abyss_dsp.c"
 #include "../dsp/abyss_presets.h"
 #include "gfx.c"
