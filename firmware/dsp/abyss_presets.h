@@ -25,7 +25,7 @@ static const ab_preset_t AB_FACTORY[] = {
     {"FEEDBACK STORM", {
         {P_XMOD, 85}, {P_FM, 40}, {P_RES, 85}, {P_CUTOFF, 80}, {P_NOISE, 30}, {P_NTYPE, N_PINK}, {P_CHAOS, 30},
         {P_SUS, 100}, {P_REL, 100},
-        {P_L1RATE, 70}, {P_L1DEPTH, 60}, {P_L1WAVE, LW_SAW}, {P_L1DEST, D_CUTOFF}, {P_DTYPE, X_FUZZ}, {P_DRIVE, 100}, {P_DTONE, 95}, {P_WET, 65}, {P_T1, 50}, {P_T2, 66}, {P_FB1, 96}, {P_FB2, 92}, {P_XFB, 55}, {P_MOD1, 1}, {P_MOD2, 1}, {P_DLTONE, 50}, {P_LVL1, 50}, {P_LVL2, 45}, {P_LVL3, 45}, END}},
+        {P_L1RATE, 27}, {P_L1DEPTH, 100}, {P_L1WAVE, LW_SINE}, {P_L1DEST, D_RES}, {P_DTYPE, X_FUZZ}, {P_DRIVE, 100}, {P_DTONE, 95}, {P_WET, 65}, {P_T1, 50}, {P_T2, 66}, {P_FB1, 96}, {P_FB2, 92}, {P_XFB, 55}, {P_MOD1, 1}, {P_MOD2, 1}, {P_DLTONE, 50}, {P_LVL1, 50}, {P_LVL2, 45}, {P_LVL3, 45}, END}},
     {"DARK AMBIENT", {
         {P_WAVE1, W_TRI}, {P_OSC2, 12}, {P_WAVE2, W_SINE}, {P_OSC3, -12}, {P_WAVE3, W_TRI}, {P_DETUNE, 25},
         {P_CUTOFF, 52}, {P_RES, 35}, {P_NOISE, 15}, {P_NTYPE, N_PINK}, {P_CHAOS, 8},
