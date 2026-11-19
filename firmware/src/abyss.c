@@ -42,7 +42,12 @@
 extern uint32_t _data_start[], _data_end[], _data_load[], _bss_start[], _bss_end[];
 extern uint32_t _rt_start[], _rt_end[], _rt_load[], _pool_start[], _pool_end[];
 
-static struct { uint32_t magic, pending, failed; } guard __attribute__((section(".noinit")));
+/* the boot-loop guard, in RAM that survives a reset: a start that ends in a crash or a watchdog reset before it has
+ * run 2 s counts as failed; two in a row and the FM-1 waits in its update mode for an installer. A power-off is not a
+ * failure: switched off, the FM-1 can restart a few times as its supply falls (the RAM kept), and those starts
+ * must not count, or the next power-on finds the count at two (found on hardware, 2026-11-19) */
+static struct { uint32_t magic, pending, failed, crashed; } guard __attribute__((section(".noinit")));
+#define GUARD_MAGIC 0x32594241u                 /* "ABY2" */
 static uint32_t boots_ok;
 static uint8_t blog_main;
 
@@ -258,6 +263,7 @@ static void fm1_fault(const fm1_crash_t *c)
     lcd_busy = 0;
     gfx_flush_rows(0, 240);
     fm1_delay_ms(3000);
+    guard.crashed = 1;                         /* (a failed start, if it came before the 2 s) */
     fm1_reboot();
 }
 
@@ -408,83 +414,53 @@ static void app_main(void)
     }
 }
 
-/* (diagnostic) a coloured band per step of the start, straight to the panel: a start that stops before the logo
- * shows how far it got. Band k is 16 rows at y = 16 k */
-static void boot_band(uint32_t k, uint16_t c)
-{
-    uint16_t row[240];
-    uint32_t i;
-    for (i = 0; i < 240u; i++)
-        row[i] = SWAP16(c);
-    lcd_window(0, k * 16u, 239, k * 16u + 15u);
-    for (i = 0; i < 16u; i++) {
-        lcd_data(row, sizeof row);
-        lcd_sync();
-    }
-}
-
 void fm1_cstart(void)
 {
-    uint32_t *s, *d, p3, src;
-    for (s = _rt_load, d = _rt_start; d < _rt_end; s++, d++)   /* the flash driver first (the log needs it) */
-        *d = *s;
-    lcd_busy = 0;
-    lcd_init();                                /* the panel first of all: the bands below show each step */
-    lcd_cmd(0x29);
-    fm1_lcd_backlight(1);
-    boot_band(0, RGB(255, 255, 255));
+    uint32_t *s, *d, p3, src, failed_start;
     fm1_cpu1_stop();                           /* a second core still running from before this reset (the stock
                                                 * firmware uses both) would scribble on the RAM cleared below */
-    boot_band(1, RGB(255, 0, 0));
     fm1_time_init();
-    boot_band(2, RGB(255, 128, 0));
     fm1_reset_reason();
     p3 = fm1_boot.p3_rst;                      /* (fm1_boot is in .bss, cleared below) */
     src = fm1_boot.rst_src;
     fm1_wdt_arm(0x0D);
-    boot_band(3, RGB(255, 255, 0));
-    if (guard.magic != 0x41425953u) {          /* "ABYS" */
-        guard.magic = 0x41425953u;
+    if (guard.magic != GUARD_MAGIC) {
+        guard.magic = GUARD_MAGIC;
         guard.failed = 0;
         guard.pending = 0;
+        guard.crashed = 0;
     }
-    if (guard.pending)
-        guard.failed++;
+    /* the last start did not reach 2 s AND it ended in a crash (fm1_fault) or the watchdog (P3_RST_SRC bit 2) */
+    failed_start = guard.pending && (guard.crashed || (p3 & 0x04u));
+    guard.failed = failed_start ? guard.failed + 1u : 0u;
+    guard.crashed = 0;
     guard.pending = 1;
-    if (guard.failed >= 2u) {
-        guard.failed = 0;
-        guard.pending = 0;
-        boot_band(4, RGB(255, 0, 255));        /* magenta: two failed starts, to UBOOT */
-        fm1_delay_ms(1500);
-        fm1_enter_uboot();
-    }
-    boot_band(4, RGB(0, 255, 0));
     fm1_irq_init();
-    boot_band(5, RGB(0, 255, 255));
     for (d = _bss_start; d < _bss_end; d++)
         *d = 0;
-    boot_band(6, RGB(0, 0, 255));
     for (d = _pool_start; d < _pool_end; d++)
         *d = 0;
-    boot_band(7, RGB(128, 0, 255));
     for (s = _data_load, d = _data_start; d < _data_end; s++, d++)
+        *d = *s;
+    for (s = _rt_load, d = _rt_start; d < _rt_end; s++, d++)
         *d = *s;
     fm1_mailbox_clear();                       /* the boot-state mailbox and the update record (0x01C7FD80..): left
                                                 * set, the chip's boot code takes the next restart (even the power
                                                 * switch, while USB keeps the RAM alive) into its update mode */
-    boot_band(8, RGB(255, 128, 192));
     blog_open((uint8_t)p3, (uint8_t)src);
-    boot_band(9, RGB(128, 128, 128));
+    blog((uint8_t)guard.failed);
+    if (guard.failed >= 2u) {
+        blog(0xA9);
+        guard.failed = 0;
+        guard.pending = 0;
+        fm1_enter_uboot();
+    }
     fm1_vdc14_raise(7);                        /* the supplies where M-VAVE's own firmware puts them (1.60 V, the */
-    fm1_sysvdd_raise(15);                      /* core and SRAM 1.38 V; the boot loader leaves 1.40 / 1.26 V). They */
-    fm1_power_stock();                         /* survive a reset but not a power-off: an FM-1 that just ran the
-                                                * stock firmware has them, one switched on cold does not */
+    fm1_sysvdd_raise(15);                      /* core and SRAM 1.38 V; the boot loader leaves 1.40 / 1.26 V) */
+    fm1_power_stock();
     blog(0xB1);
-    boot_band(10, RGB(255, 255, 255));
     fm1_guard_enable(FM1_GUARD_STACK | FM1_GUARD_WRITE | FM1_GUARD_BUS | FM1_GUARD_PC);
     blog(0xB2);
-    boot_band(11, RGB(255, 0, 0));
-    fm1_delay_ms(400);                         /* (long enough to see the bands) */
     app_main();
     for (;;)
         ;
