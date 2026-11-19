@@ -242,9 +242,22 @@ static void splash(void)
     gfx_flush_rows(0, 240);
 }
 
+/* the start's steps as small dots under the splash: a start that stops shows how far it got (0 screen,
+ * 1 flash, 2 sound and presets, 3 keys, 4 audio, 5 USB and interrupts) */
+static void boot_mark(uint32_t k)
+{
+    gfx_fill(96 + (int32_t)k * 9, 196, 5, 5, C_DIM);
+    gfx_flush_rows(196, 201);
+}
+
 static void app_main(void)
 {
     uint32_t last_status = 0, last_frame = 0, last_pot = 0;
+    lcd_init();                                /* the screen first: whatever stops the start shows where */
+    splash();
+    lcd_cmd(0x29);                             /* DISPON */
+    fm1_lcd_backlight(1);
+    boot_mark(0);
     {
         uint32_t f = irq_save(), id = FL_FAR(fl_jedec_ram)();
         irq_restore(f);
@@ -252,22 +265,23 @@ static void app_main(void)
         if (flash_ok)
             ota_boot_cleanup();
     }
+    boot_mark(1);
     dsp_init();
     ui_init();
     pr_boot();                                 /* the user slots from flash; power-on plays factory preset 1 */
     pr_apply(pr_entry(0));
     ui.focus[PG_OSC1] = FOCUS_PRESET;          /* (the screen opens on the sound's name) */
-    lcd_init();
-    splash();
-    lcd_cmd(0x29);                             /* DISPON */
+    boot_mark(2);
     fm1_input_init();
     fm1_adc_init();
+    boot_mark(3);
     audio_init();
+    boot_mark(4);
     usb_start();
     fm1_timer5_start(isr_timer5, 4);
     fm1_guard_lock_top();
     fm1_irq_enable_all();
-    fm1_lcd_backlight(1);
+    boot_mark(5);
     while (fm1_ms < 900u)                      /* the splash */
         fm1_wdt_feed();
     {                                          /* what the scan settled on meanwhile is not a turn, nor a press */
@@ -334,6 +348,10 @@ void fm1_cstart(void)
     fm1_time_init();
     fm1_reset_reason();
     fm1_wdt_arm(0x0D);
+    fm1_vdc14_raise(7);                        /* the supplies where M-VAVE's own firmware puts them (1.60 V, the */
+    fm1_sysvdd_raise(15);                      /* core and SRAM 1.38 V; the boot loader leaves 1.40 / 1.26 V). They */
+    fm1_power_stock();                         /* survive a reset but not a power-off: an FM-1 that just ran the
+                                                * stock firmware has them, one switched on cold does not */
     if (guard.magic != 0x41425953u) {          /* "ABYS" */
         guard.magic = 0x41425953u;
         guard.failed = 0;
