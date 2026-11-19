@@ -329,7 +329,10 @@ static void app_main(void)
 void fm1_cstart(void)
 {
     uint32_t *s, *d;
+    fm1_cpu1_stop();                           /* a second core still running from before this reset (the stock
+                                                * firmware uses both) would scribble on the RAM cleared below */
     fm1_time_init();
+    fm1_reset_reason();
     fm1_wdt_arm(0x0D);
     if (guard.magic != 0x41425953u) {          /* "ABYS" */
         guard.magic = 0x41425953u;
@@ -353,6 +356,9 @@ void fm1_cstart(void)
         *d = *s;
     for (s = _rt_load, d = _rt_start; d < _rt_end; s++, d++)
         *d = *s;
+    fm1_mailbox_clear();                       /* the boot-state mailbox and the update record (0x01C7FD80..): left
+                                                * set, the chip's boot code takes the next restart (even the power
+                                                * switch, while USB keeps the RAM alive) into its update mode */
     fm1_guard_enable(FM1_GUARD_STACK | FM1_GUARD_WRITE | FM1_GUARD_BUS | FM1_GUARD_PC);
     app_main();
     for (;;)
