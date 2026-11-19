@@ -192,6 +192,7 @@ static void audio_silence(void)                /* (interrupts off) the DMA would
 #define BLOG_END 0xE00u                          /* (0xF00.. stays erased: the update loader looks there) */
 static uint32_t blog_at;
 static uint8_t blog_on;
+static uint32_t blog_id;
 static void blog(uint8_t b)
 {
     uint8_t v = b;
@@ -211,8 +212,7 @@ static void blog_open(uint8_t p3, uint8_t src)
     f = irq_save();
     id = FL_FAR(fl_jedec_ram)();
     irq_restore(f);
-    if (id != 0x856014u && id != 0xB36014u)
-        return;
+    blog_id = id;                              /* (logged below; a start-up flash in another mode reads wrong) */
     blog_at = BLOG_END;
     for (o = 0; o < BLOG_END && blog_at == BLOG_END; o += 256u) {   /* the first erased byte */
         f = irq_save();
@@ -234,6 +234,9 @@ static void blog_open(uint8_t p3, uint8_t src)
     blog(0xB0);
     blog(p3);
     blog(src);
+    blog((uint8_t)blog_id);
+    blog((uint8_t)(blog_id >> 8));
+    blog((uint8_t)(blog_id >> 16));
 }
 
 /* a fault: a red screen with the address, then a reset; the record survives in fm1_crash */
@@ -405,16 +408,41 @@ static void app_main(void)
     }
 }
 
+/* (diagnostic) a coloured band per step of the start, straight to the panel: a start that stops before the logo
+ * shows how far it got. Band k is 16 rows at y = 16 k */
+static void boot_band(uint32_t k, uint16_t c)
+{
+    uint16_t row[240];
+    uint32_t i;
+    for (i = 0; i < 240u; i++)
+        row[i] = SWAP16(c);
+    lcd_window(0, k * 16u, 239, k * 16u + 15u);
+    for (i = 0; i < 16u; i++) {
+        lcd_data(row, sizeof row);
+        lcd_sync();
+    }
+}
+
 void fm1_cstart(void)
 {
     uint32_t *s, *d, p3, src;
+    for (s = _rt_load, d = _rt_start; d < _rt_end; s++, d++)   /* the flash driver first (the log needs it) */
+        *d = *s;
+    lcd_busy = 0;
+    lcd_init();                                /* the panel first of all: the bands below show each step */
+    lcd_cmd(0x29);
+    fm1_lcd_backlight(1);
+    boot_band(0, RGB(255, 255, 255));
     fm1_cpu1_stop();                           /* a second core still running from before this reset (the stock
                                                 * firmware uses both) would scribble on the RAM cleared below */
+    boot_band(1, RGB(255, 0, 0));
     fm1_time_init();
+    boot_band(2, RGB(255, 128, 0));
     fm1_reset_reason();
     p3 = fm1_boot.p3_rst;                      /* (fm1_boot is in .bss, cleared below) */
     src = fm1_boot.rst_src;
     fm1_wdt_arm(0x0D);
+    boot_band(3, RGB(255, 255, 0));
     if (guard.magic != 0x41425953u) {          /* "ABYS" */
         guard.magic = 0x41425953u;
         guard.failed = 0;
@@ -426,28 +454,37 @@ void fm1_cstart(void)
     if (guard.failed >= 2u) {
         guard.failed = 0;
         guard.pending = 0;
+        boot_band(4, RGB(255, 0, 255));        /* magenta: two failed starts, to UBOOT */
+        fm1_delay_ms(1500);
         fm1_enter_uboot();
     }
+    boot_band(4, RGB(0, 255, 0));
     fm1_irq_init();
+    boot_band(5, RGB(0, 255, 255));
     for (d = _bss_start; d < _bss_end; d++)
         *d = 0;
+    boot_band(6, RGB(0, 0, 255));
     for (d = _pool_start; d < _pool_end; d++)
         *d = 0;
+    boot_band(7, RGB(128, 0, 255));
     for (s = _data_load, d = _data_start; d < _data_end; s++, d++)
-        *d = *s;
-    for (s = _rt_load, d = _rt_start; d < _rt_end; s++, d++)
         *d = *s;
     fm1_mailbox_clear();                       /* the boot-state mailbox and the update record (0x01C7FD80..): left
                                                 * set, the chip's boot code takes the next restart (even the power
                                                 * switch, while USB keeps the RAM alive) into its update mode */
+    boot_band(8, RGB(255, 128, 192));
     blog_open((uint8_t)p3, (uint8_t)src);
+    boot_band(9, RGB(128, 128, 128));
     fm1_vdc14_raise(7);                        /* the supplies where M-VAVE's own firmware puts them (1.60 V, the */
     fm1_sysvdd_raise(15);                      /* core and SRAM 1.38 V; the boot loader leaves 1.40 / 1.26 V). They */
     fm1_power_stock();                         /* survive a reset but not a power-off: an FM-1 that just ran the
                                                 * stock firmware has them, one switched on cold does not */
     blog(0xB1);
+    boot_band(10, RGB(255, 255, 255));
     fm1_guard_enable(FM1_GUARD_STACK | FM1_GUARD_WRITE | FM1_GUARD_BUS | FM1_GUARD_PC);
     blog(0xB2);
+    boot_band(11, RGB(255, 0, 0));
+    fm1_delay_ms(400);                         /* (long enough to see the bands) */
     app_main();
     for (;;)
         ;
