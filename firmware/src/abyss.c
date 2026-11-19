@@ -319,6 +319,37 @@ static void boot_mark(uint32_t k)
     gfx_flush_rows(196, 201);
 }
 
+/* the boot log's last bytes as hex on the screen (REC held at power-on), until any button */
+static void show_boot_log(void)
+{
+    static uint8_t buf[256];
+    uint32_t f, start, i, n, row;
+    char line[40];
+    start = blog_at > 120u ? blog_at - 120u : 0u;
+    f = irq_save();
+    FL_FAR(fl_read_ram)(BLOG_SECT + start, buf, 120);
+    irq_restore(f);
+    n = blog_at - start;
+    gfx_fill(0, 0, 240, 240, C_BG);
+    gfx_text(MX, 6, &F_LABEL, "BOOT LOG", C_ACC);
+    for (row = 0; row * 10u < n; row++) {
+        char *q = line;
+        for (i = row * 10u; i < n && i < row * 10u + 10u; i++) {
+            *q++ = "0123456789ABCDEF"[buf[i] >> 4];
+            *q++ = "0123456789ABCDEF"[buf[i] & 15u];
+            *q++ = ' ';
+        }
+        *q = 0;
+        gfx_text(MX, 26 + (int32_t)row * 17, &F_LABEL, line, C_INK);
+    }
+    gfx_flush_rows(0, 240);
+    while ((fm1_in.buttons >> BT_REC) & 1u)
+        fm1_wdt_feed();
+    while (!fm1_in.buttons)
+        fm1_wdt_feed();
+    ui.full = 1;
+}
+
 static void app_main(void)
 {
     uint32_t last_status = 0, last_frame = 0, last_pot = 0;
@@ -353,6 +384,8 @@ static void app_main(void)
     boot_mark(5);
     while (fm1_ms < 900u)                      /* the splash */
         fm1_wdt_feed();
+    if ((fm1_in.buttons >> BT_REC) & 1u)       /* REC held at power-on: the boot log, until a key */
+        show_boot_log();
     {                                          /* what the scan settled on meanwhile is not a turn, nor a press */
         uint32_t i, rel;
         for (i = 0; i < FM1_NENC; i++)
@@ -455,10 +488,9 @@ void fm1_cstart(void)
         guard.pending = 0;
         fm1_enter_uboot();
     }
-    fm1_vdc14_raise(7);                        /* the supplies where M-VAVE's own firmware puts them (1.60 V, the */
-    fm1_sysvdd_raise(15);                      /* core and SRAM 1.38 V; the boot loader leaves 1.40 / 1.26 V) */
-    fm1_power_stock();
-    blog(0xB1);
+    blog(0xB1);                                /* (the supplies as the boot loader leaves them, as Felucca: raising
+                                                * them, and the DC-DC switch-over, are not needed and a load on a
+                                                * battery at power-on) */
     fm1_guard_enable(FM1_GUARD_STACK | FM1_GUARD_WRITE | FM1_GUARD_BUS | FM1_GUARD_PC);
     blog(0xB2);
     app_main();
