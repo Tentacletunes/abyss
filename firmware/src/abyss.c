@@ -44,6 +44,7 @@ extern uint32_t _rt_start[], _rt_end[], _rt_load[], _pool_start[], _pool_end[];
 
 static struct { uint32_t magic, pending, failed; } guard __attribute__((section(".noinit")));
 static uint32_t boots_ok;
+static uint8_t blog_main;
 
 /* ---------------------------------------------------------------- audio --- */
 #define HALF_FRAMES 128u                       /* 2.9 ms a half buffer */
@@ -181,12 +182,70 @@ static void audio_silence(void)                /* (interrupts off) the DMA would
 }
 #include "presets.c"
 
+/* ---------------------------------------------------------------- boot log (diagnostic) --- */
+/* Each start appends a few bytes to one flash sector (0xF2000, felucca-bsp's FL_XDATA1): how far it got. A flash
+ * backup (the rescue tool makes one) then shows where a start that never reached the screen stopped.
+ *   B0 p3_rst rst_src   the start, after the RAM setup, with the reset cause
+ *   B1 supplies raised   B2 guards on   C0..C5 app_main's steps (boot_mark)   C8 main loop   C9 2 s healthy
+ *   EE vec pc(4) rets(4) a fault */
+#define BLOG_SECT 0x000F2000u
+#define BLOG_END 0xE00u                          /* (0xF00.. stays erased: the update loader looks there) */
+static uint32_t blog_at;
+static uint8_t blog_on;
+static void blog(uint8_t b)
+{
+    uint8_t v = b;
+    if (!blog_on || blog_at >= BLOG_END)
+        return;
+    if (!fl_write(BLOG_SECT + blog_at, &v, 1))
+        blog_at++;
+}
+static void blog32(uint32_t v)
+{
+    blog((uint8_t)v); blog((uint8_t)(v >> 8)); blog((uint8_t)(v >> 16)); blog((uint8_t)(v >> 24));
+}
+static void blog_open(uint8_t p3, uint8_t src)
+{
+    static uint8_t buf[256];
+    uint32_t f, id, o, i, took;
+    f = irq_save();
+    id = FL_FAR(fl_jedec_ram)();
+    irq_restore(f);
+    if (id != 0x856014u && id != 0xB36014u)
+        return;
+    blog_at = BLOG_END;
+    for (o = 0; o < BLOG_END && blog_at == BLOG_END; o += 256u) {   /* the first erased byte */
+        f = irq_save();
+        FL_FAR(fl_read_ram)(BLOG_SECT + o, buf, 256);
+        irq_restore(f);
+        for (i = 0; i < 256u; i++)
+            if (buf[i] == 0xFFu) {
+                blog_at = o + i;
+                break;
+            }
+    }
+    if (blog_at > BLOG_END - 64u) {                /* full: start again */
+        f = irq_save();
+        FL_FAR(fl_erase4k_ram)(BLOG_SECT, &took);
+        irq_restore(f);
+        blog_at = 0;
+    }
+    blog_on = 1;
+    blog(0xB0);
+    blog(p3);
+    blog(src);
+}
+
 /* a fault: a red screen with the address, then a reset; the record survives in fm1_crash */
 static void fm1_fault(const fm1_crash_t *c)
 {
     char b[12];
     uint32_t i;
     fm1_audio_stop();
+    blog(0xEE);
+    blog((uint8_t)c->vec);
+    blog32(c->pc);
+    blog32(c->rets);
     gfx_fill(0, 0, 240, 240, RGB(0x90, 0x10, 0x18));
     gfx_text(MX, 30, &F_TITLE, "ABYSS CRASH", C_INK);
     for (i = 0; i < 8u; i++)
@@ -246,6 +305,7 @@ static void splash(void)
  * 1 flash, 2 sound and presets, 3 keys, 4 audio, 5 USB and interrupts) */
 static void boot_mark(uint32_t k)
 {
+    blog((uint8_t)(0xC0u + k));
     gfx_fill(96 + (int32_t)k * 9, 196, 5, 5, C_DIM);
     gfx_flush_rows(196, 201);
 }
@@ -309,7 +369,12 @@ static void app_main(void)
                 ota_session();
             ui.full = 1;
         }
-        if (!boots_ok && now > 2000u) {        /* it runs: the next boot is not a loop */
+        if (!blog_main) {
+            blog_main = 1;
+            blog(0xC8);
+        }
+        if (!boots_ok && now > 2000u) {
+            blog(0xC9);        /* it runs: the next boot is not a loop */
             boots_ok = 1;
             guard.pending = 0;
             guard.failed = 0;
@@ -342,16 +407,14 @@ static void app_main(void)
 
 void fm1_cstart(void)
 {
-    uint32_t *s, *d;
+    uint32_t *s, *d, p3, src;
     fm1_cpu1_stop();                           /* a second core still running from before this reset (the stock
                                                 * firmware uses both) would scribble on the RAM cleared below */
     fm1_time_init();
     fm1_reset_reason();
+    p3 = fm1_boot.p3_rst;                      /* (fm1_boot is in .bss, cleared below) */
+    src = fm1_boot.rst_src;
     fm1_wdt_arm(0x0D);
-    fm1_vdc14_raise(7);                        /* the supplies where M-VAVE's own firmware puts them (1.60 V, the */
-    fm1_sysvdd_raise(15);                      /* core and SRAM 1.38 V; the boot loader leaves 1.40 / 1.26 V). They */
-    fm1_power_stock();                         /* survive a reset but not a power-off: an FM-1 that just ran the
-                                                * stock firmware has them, one switched on cold does not */
     if (guard.magic != 0x41425953u) {          /* "ABYS" */
         guard.magic = 0x41425953u;
         guard.failed = 0;
@@ -377,7 +440,14 @@ void fm1_cstart(void)
     fm1_mailbox_clear();                       /* the boot-state mailbox and the update record (0x01C7FD80..): left
                                                 * set, the chip's boot code takes the next restart (even the power
                                                 * switch, while USB keeps the RAM alive) into its update mode */
+    blog_open((uint8_t)p3, (uint8_t)src);
+    fm1_vdc14_raise(7);                        /* the supplies where M-VAVE's own firmware puts them (1.60 V, the */
+    fm1_sysvdd_raise(15);                      /* core and SRAM 1.38 V; the boot loader leaves 1.40 / 1.26 V). They */
+    fm1_power_stock();                         /* survive a reset but not a power-off: an FM-1 that just ran the
+                                                * stock firmware has them, one switched on cold does not */
+    blog(0xB1);
     fm1_guard_enable(FM1_GUARD_STACK | FM1_GUARD_WRITE | FM1_GUARD_BUS | FM1_GUARD_PC);
+    blog(0xB2);
     app_main();
     for (;;)
         ;
