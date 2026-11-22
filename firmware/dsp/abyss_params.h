@@ -25,6 +25,9 @@ enum {
     P_T1, P_FB1, P_MOD1, P_PAN1,
     P_T2, P_FB2, P_MOD2, P_PAN2,
     P_DMODE, P_XFB, P_DLTONE, P_WET,
+    /* Milestone 6: ENV MOD, OUTPUT (P_MIDICH and P_BEND are settings: presets neither set nor change them) */
+    P_EDEST, P_EAMT, P_VELS,
+    P_WIDTH, P_MIDICH, P_BEND,
     P_COUNT
 };
 
@@ -51,6 +54,8 @@ enum {                       /* how a value reads on the screen */
     FMT_FTYPE, FMT_DTYPE, FMT_DMODE, /* names */
     FMT_DTIME,               /* 0..127 -> "250 ms", "1.20 s" */
     FMT_PAN,                 /* -100..100 -> "L 40", "C", "R 40" */
+    FMT_MIDICH,              /* 0 OMNI, 1..16 */
+    FMT_BEND,                /* semitones -> "2 st" */
 };
 
 typedef struct {
@@ -118,6 +123,12 @@ static const ab_param_t AB_P[P_COUNT] = {
     [P_XFB] = {"CROSS FEEDBACK", "X-FEEDBACK", 0, 100, 0, FMT_PCT, 0},
     [P_DLTONE] = {"DELAY TONE", "TONE", 0, 100, 60, FMT_PCT, 0},
     [P_WET] = {"WET / DRY", "WET/DRY", 0, 100, 0, FMT_PCT, 0},
+    [P_EDEST] = {"ENVELOPE TARGET", "TARGET", 0, D_COUNT - 1, D_PITCH, FMT_DEST, 1},
+    [P_EAMT] = {"ENVELOPE AMOUNT", "AMOUNT", -100, 100, 0, FMT_BIPCT, 0},
+    [P_VELS] = {"VELOCITY", "VELOCITY", 0, 100, 0, FMT_PCT, 0},
+    [P_WIDTH] = {"STEREO WIDTH", "WIDTH", 0, 100, 50, FMT_PCT, 0},
+    [P_MIDICH] = {"MIDI CHANNEL", "MIDI CH", 0, 16, 0, FMT_MIDICH, 1},
+    [P_BEND] = {"PITCH BEND RANGE", "BEND", 0, 24, 2, FMT_BEND, 1},
 };
 
 static const char *const AB_WAVE_NAME[W_COUNT] = {"SINE", "TRIANGLE", "SAW", "SQUARE"};
@@ -137,3 +148,6 @@ static const char *const AB_FTYPE_BRIEF[F_COUNT] = {"LP", "BP", "HP"};
 static const char *const AB_DTYPE_NAME[X_COUNT] = {"SOFT", "HARD", "FOLD", "FUZZ", "CRUSH", "DECIMATE"};
 static const char *const AB_DTYPE_BRIEF[X_COUNT] = {"SOFT", "HARD", "FOLD", "FUZZ", "CRUSH", "DECIM"};
 static const char *const AB_DMODE_NAME[DM_COUNT] = {"SERIES", "PARALLEL"};
+
+/* settings, not sound: a preset load leaves them as they are */
+static int ab_is_setting(uint32_t i) { return i == P_MIDICH || i == P_BEND; }

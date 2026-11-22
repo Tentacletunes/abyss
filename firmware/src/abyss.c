@@ -30,6 +30,7 @@
 #include "libc.c"
 #include "usb.c"
 #include "ota.c"
+#include "midi_uart.c"                       /* TRS MIDI IN (Felucca's, GPL-3.0): into the same queue as USB */
 
 #include "abyss_tables.h"
 #include "abyss_fonts.h"
@@ -116,6 +117,8 @@ void fm1_timer5_irq(void)                      /* prio 4, above the audio (3): t
         sub = 0;
         owed = 1;                              /* 2 kHz: USB */
     }
+    if (sub == 2u)
+        uart_midi_poll();                      /* 2 kHz, also during the audio: TRS MIDI IN */
     if (in_audio) {                            /* nested in the render: USB waits for the next tick */
         t5_nested += fm1_ticks() - t0;
         return;
@@ -368,8 +371,15 @@ static void app_main(void)
     boot_mark(1);
     dsp_init();
     ui_init();
-    pr_boot();                                 /* the user slots from flash; power-on plays factory preset 1 */
-    pr_apply(pr_entry(0));
+    pr_boot();                                 /* the user slots from flash */
+    {                                          /* the sound last chosen (else factory 1), MIDI CH and BEND */
+        uint32_t e = set_boot(), i;
+        ui.pr_cur = 0;
+        for (i = 0; i < pr_count(); i++)
+            if (pr_entry(i) == e)
+                ui.pr_cur = i;
+        pr_apply(pr_entry(ui.pr_cur));
+    }
     ui.focus[PG_OSC1] = FOCUS_PRESET;          /* (the screen opens on the sound's name) */
     boot_mark(2);
     fm1_input_init();
@@ -377,6 +387,7 @@ static void app_main(void)
     boot_mark(3);
     audio_init();
     boot_mark(4);
+    uart_midi_init();                          /* (before the 10 kHz tick: it shares port H) */
     usb_start();
     fm1_timer5_start(isr_timer5, 4);
     fm1_guard_lock_top();
@@ -427,6 +438,7 @@ static void app_main(void)
             blog(0xC9);
         }
         ui_poll();
+        set_service(pr_entry(ui.pr_cur));
         if (now - last_pot >= 20u) {           /* MASTER: an audio taper */
             int32_t v = fm1_adc_read(FM1_ADC_MASTER);
             last_pot = now;

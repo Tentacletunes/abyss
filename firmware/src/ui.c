@@ -25,7 +25,7 @@
 /* One topic a page, four parameters on K1..K4. HOME steps through the pages, SELECT turns through them; the left
  * knobs keep one job each everywhere: SELECT the page, ALGORITHM the filter, PRESETS (Milestone 5) the presets */
 enum { PG_OSC1, PG_OSC2, PG_OSC3, PG_NOISE, PG_CROSS, PG_FILTER, PG_ENV, PG_DRIVE, PG_DLY1, PG_DLY2, PG_DLYS,
-       PG_LFO1, PG_LFO2, PG_RAND, PG_PRESET, PG_COUNT };
+       PG_LFO1, PG_LFO2, PG_RAND, PG_ENVMOD, PG_OUT, PG_PRESET, PG_COUNT };
 #define PG_CYCLE PG_PRESET                /* HOME and SELECT go round the pages before this one */
 typedef struct {
     const char *tag;                      /* the page's name, top right */
@@ -48,6 +48,8 @@ static const page_t PAGES[PG_COUNT] = {
     [PG_LFO1] = {"LFO 1", {P_L1RATE, P_L1DEPTH, P_L1WAVE, P_L1DEST}, 0},
     [PG_LFO2] = {"LFO 2", {P_L2RATE, P_L2DEPTH, P_L2WAVE, P_L2DEST}, 0},
     [PG_RAND] = {"RANDOM", {P_RRATE, P_RDEPTH, P_RSMOOTH, P_RDEST}, 0},
+    [PG_ENVMOD] = {"ENV MOD", {P_EDEST, P_EAMT, P_VELS, -1}, 0},
+    [PG_OUT] = {"OUTPUT", {P_WIDTH, P_MIDICH, P_BEND, -1}, 0},
     [PG_PRESET] = {"PRESETS", NONE4, 0},   /* (its own drawing: the sound's name, SAVE TO) */
 };
 
@@ -60,6 +62,7 @@ static void pr_name(uint32_t e, char *b);
 static void pr_apply(uint32_t e);
 static int pr_save(uint32_t k, const int16_t *p);
 static uint16_t pr_used(void);
+static void set_mark(void);
 
 /* matrix button ids (Felucca panel.c PANEL_DEFAULT, measured on hardware) */
 enum { BT_OCTDN = 0, BT_OCTUP = 1, BT_FX = 2, BT_SCL = 3, BT_ENV = 4, BT_LFO = 5, BT_EDIT = 6, BT_GLO = 7,
@@ -76,6 +79,8 @@ static struct {
     uint32_t keys;                        /* the note keys as last seen */
     uint8_t stack[16], nstack;            /* held notes, the last one sounds */
     uint8_t tap;                          /* REC held */
+    uint8_t sus;                          /* sustain pedal down */
+    uint32_t sus_bits[4];                 /* notes let go while it was down */
     uint8_t full;                         /* redraw and send everything */
     char sig[3][48];                      /* what each band last showed */
     uint32_t frames;
@@ -115,7 +120,16 @@ static void note_on(uint32_t n)
     ui.stack[ui.nstack++] = (uint8_t)n;
     voice_update(1);
 }
-static void note_off(uint32_t n)
+static void note_release(uint32_t n);
+static void note_off(uint32_t n)                /* (sustain pedal down: kept until it comes up) */
+{
+    if (ui.sus && n < 128u) {
+        ui.sus_bits[n >> 5] |= 1u << (n & 31u);
+        return;
+    }
+    note_release(n);
+}
+static void note_release(uint32_t n)
 {
     uint32_t i, j, top = ui.nstack && ui.stack[ui.nstack - 1u] == n;
     for (i = j = 0; i < ui.nstack; i++)
@@ -134,7 +148,10 @@ static void param_step(int32_t pi, int32_t d)
     int32_t v = ab.p[pi] + d;
     ab.p[pi] = (int16_t)(v < p->min ? p->min : v > p->max ? p->max : v);
     ui.touched_ms = fm1_ms;
-    ui.pr_edited = 1;
+    if (ab_is_setting((uint32_t)pi))
+        set_mark();                                /* (MIDI CH, BEND: kept over a power-off) */
+    else
+        ui.pr_edited = 1;
 }
 
 static void page_go(uint32_t pg)
@@ -148,7 +165,9 @@ static void button(uint32_t b)
     case BT_HOME: page_go(ui.page + 1u >= PG_CYCLE ? 0u : ui.page + 1u); break;   /* the next page, round */
     case BT_ENV: page_go(PG_ENV); break;
     case BT_EDIT: page_go(PG_FILTER); break;
-    case BT_LFO: page_go(ui.page == PG_LFO1 ? PG_LFO2 : ui.page == PG_LFO2 ? PG_RAND : PG_LFO1); break;
+    case BT_LFO:                                   /* LFO 1 -> LFO 2 -> RANDOM -> ENV MOD */
+        page_go(ui.page == PG_LFO1 ? PG_LFO2 : ui.page == PG_LFO2 ? PG_RAND : ui.page == PG_RAND ? PG_ENVMOD : PG_LFO1);
+        break;
     case BT_FX:                                    /* DRIVE -> DELAY 1 -> DELAY 2 -> DELAYS */
         page_go(ui.page >= PG_DRIVE && ui.page < PG_DLYS ? ui.page + 1u : PG_DRIVE);
         break;
@@ -165,6 +184,7 @@ static void button(uint32_t b)
                 if (pr_entry(i) == 100u + ui.pr_slot)
                     ui.pr_cur = i;
             ui.pr_edited = 0;
+            set_mark();
         }
         break;
     case BT_GLO: ui.perf ^= 1u; ui.full = 1; break;
@@ -184,25 +204,93 @@ static void button(uint32_t b)
     }
 }
 
+/* a CC (0..127) onto parameter pi's whole range */
+static void cc_set(int32_t pi, uint32_t v)
+{
+    const ab_param_t *p = &AB_P[pi];
+    if (pi < 0)
+        return;
+    ab.p[pi] = (int16_t)(p->min + ((int32_t)v * (p->max - p->min) + 63) / 127);
+    if (!ab_is_setting((uint32_t)pi))
+        ui.pr_edited = 1;
+}
+
+/* MIDI in, USB and the TRS jack alike (one queue, bsp usb.c). On the MIDI CHANNEL set on OUTPUT (OMNI: any):
+ *   notes with velocity, sustain pedal (CC 64), pitch bend (BEND range), program change = preset 1..
+ *   CC 1 LFO 1 depth, 16-19 the shown page's K1-K4, 70 drive, 71 resonance, 72 release, 73 attack, 74 cutoff,
+ *   91 wet/dry, 120 / 123 all off */
 static void midi_poll(void)
 {
     if (midi_in_overflow) {                        /* a broken stream: drop it, silence its notes */
         mi_r = mi_w;
         midi_in_overflow = 0;
         ui.nstack = 0;
+        ui.sus = 0;
         voice_update(0);
         return;
     }
     while (mi_r != mi_w) {
-        uint32_t pkt = midi_in_q[mi_r % MQ], st = (pkt >> 8) & 0xF0u, d1 = (pkt >> 16) & 0x7Fu, d2 = pkt >> 24 & 0x7Fu;
+        uint32_t pkt = midi_in_q[mi_r % MQ], st = (pkt >> 8) & 0xF0u, ch = (pkt >> 8) & 0x0Fu;
+        uint32_t d1 = (pkt >> 16) & 0x7Fu, d2 = pkt >> 24 & 0x7Fu;
         mi_r++;
-        if (st == 0x90u && d2)
-            note_on(d1);
-        else if (st == 0x80u || st == 0x90u)
+        if (st < 0x80u || st == 0xF0u || (ab.p[P_MIDICH] && ch != (uint32_t)ab.p[P_MIDICH] - 1u))
+            continue;
+        switch (st) {
+        case 0x90u:
+            if (d2) {
+                ab.vel = (uint8_t)d2;
+                note_on(d1);
+                break;
+            }
+            /* fall through: velocity 0 is a note off */
+        case 0x80u:
             note_off(d1);
-        else if (st == 0xB0u && (d1 == 120u || d1 == 123u)) {   /* all sound / notes off */
-            ui.nstack = 0;
-            voice_update(0);
+            break;
+        case 0xE0u: {                              /* pitch bend, +-BEND semitones */
+            int32_t b = (int32_t)(d1 | d2 << 7) - 8192;
+            ab.bend = (int16_t)(b * ab.p[P_BEND] * 64 / 8192);
+            break;
+        }
+        case 0xC0u:                                /* program change: preset d1 + 1 */
+            if (d1 < pr_count()) {
+                ui.pr_cur = d1;
+                pr_apply(pr_entry(d1));
+                ui.pr_edited = 0;
+                set_mark();
+            }
+            break;
+        case 0xB0u:
+            switch (d1) {
+            case 1u: cc_set(P_L1DEPTH, d2); break;
+            case 16u: case 17u: case 18u: case 19u:
+                cc_set(PAGES[ui.page].slot[d1 - 16u], d2);
+                break;
+            case 64u:                              /* sustain pedal */
+                if (d2 >= 64u)
+                    ui.sus = 1;
+                else if (ui.sus) {
+                    uint32_t n;
+                    ui.sus = 0;
+                    for (n = 0; n < 128u; n++)
+                        if ((ui.sus_bits[n >> 5] >> (n & 31u)) & 1u)
+                            note_off(n);
+                    ui.sus_bits[0] = ui.sus_bits[1] = ui.sus_bits[2] = ui.sus_bits[3] = 0;
+                }
+                break;
+            case 70u: cc_set(P_DRIVE, d2); break;
+            case 71u: cc_set(P_RES, d2); break;
+            case 72u: cc_set(P_REL, d2); break;
+            case 73u: cc_set(P_ATK, d2); break;
+            case 74u: cc_set(P_CUTOFF, d2); break;
+            case 91u: cc_set(P_WET, d2); break;
+            case 120u: case 123u:                  /* all sound / notes off */
+                ui.nstack = 0;
+                ui.sus = 0;
+                ui.sus_bits[0] = ui.sus_bits[1] = ui.sus_bits[2] = ui.sus_bits[3] = 0;
+                voice_update(0);
+                break;
+            }
+            break;
         }
     }
 }
@@ -212,8 +300,10 @@ static void ui_poll(void)                      /* keys, buttons, knobs, MIDI: of
     uint32_t i, keys = fm1_in.notes, d = keys ^ ui.keys, rel = 0, pressed;
     for (i = 0; d && i < 27u; i++)
         if ((d >> i) & 1u) {
-            if ((keys >> i) & 1u)
+            if ((keys >> i) & 1u) {
+                ab.vel = 100;                      /* (the keys: no velocity) */
                 note_on(key_note(i));
+            }
             else
                 note_off(key_note(i));
         }
@@ -244,6 +334,7 @@ static void ui_poll(void)                      /* keys, buttons, knobs, MIDI: of
                 ui.pr_cur = (uint32_t)c;
                 pr_apply(pr_entry(ui.pr_cur));
                 ui.pr_edited = 0;
+                set_mark();
             }
             ui.focus[ui.page] = FOCUS_PRESET;
             continue;
@@ -274,7 +365,8 @@ static void gfx_poll(void)                     /* (not before the main loop: the
 static void ui_leds(void)
 {
     static const uint8_t PAGE_BTN[PG_COUNT] = {BT_HOME, BT_HOME, BT_HOME, BT_HOME, BT_HOME, BT_EDIT, BT_ENV,
-                                               BT_FX, BT_FX, BT_FX, BT_FX, BT_LFO, BT_LFO, BT_LFO, BT_SAVE};
+                                               BT_FX, BT_FX, BT_FX, BT_FX, BT_LFO, BT_LFO, BT_LFO, BT_LFO,
+                                               BT_HOME, BT_SAVE};
     uint32_t i;
     for (i = 0; i < 14u; i++) {
         uint32_t on = i == PAGE_BTN[ui.page] || (i == BT_PLAY && ab.drone) || (i == BT_GLO && ui.perf) ||
@@ -355,6 +447,12 @@ static void value_text(int32_t pi, char *num, char *unit, uint32_t brief)
     case FMT_SYNC: put_s(num, brief ? AB_SYNC_BRIEF[v] : AB_SYNC_NAME[v]); break;
     case FMT_LWAVE: put_s(num, brief ? AB_LWAVE_BRIEF[v] : AB_LWAVE_NAME[v]); break;
     case FMT_DEST: put_s(num, brief ? AB_DEST_BRIEF[v] : AB_DEST_NAME[v]); break;
+    case FMT_MIDICH:
+        if (!v) put_s(num, "OMNI");
+        else if (brief) put_u(num, (uint32_t)v);
+        else put_u(put_s(num, "CH "), (uint32_t)v);
+        break;
+    case FMT_BEND: put_u(num, (uint32_t)v); put_s(unit, brief ? "st" : " st"); break;
     case FMT_FTYPE: put_s(num, brief ? AB_FTYPE_BRIEF[v] : AB_FTYPE_NAME[v]); break;
     case FMT_DTYPE: put_s(num, brief ? AB_DTYPE_BRIEF[v] : AB_DTYPE_NAME[v]); break;
     case FMT_DMODE: put_s(num, AB_DMODE_NAME[v]); break;

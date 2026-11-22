@@ -199,5 +199,23 @@ int main(int argc, char **argv)
     report("13c runaway, time moved");
     ab.p[P_FB1] = ab.p[P_FB2] = 0; ab.p[P_XFB] = 0; run(f, 3.0); report("13d after: decays to silence");
     wav_close(f);
+
+    /* 14: Milestone 6 - width, envelope as a modulator, velocity, pitch bend */
+    dsp_init();
+    snprintf(p, sizeof p, "%s/14_m6.wav", dir); f = wav_open(p);
+    ab.p[P_WET] = 40; ab.p[P_DMODE] = DM_PARALLEL; ab.p[P_PAN1] = -100; ab.p[P_PAN2] = 100;
+    for (k = 0; k <= 100; k += 50) { ab.p[P_WIDTH] = (int16_t)k; note(45, 1); run(f, 0.6); note(0, 0); run(f, 0.6); }
+    report("14a width 0 / 50 / 100");
+    ab.p[P_WIDTH] = 50; ab.p[P_EDEST] = D_PITCH; ab.p[P_EAMT] = -60; ab.p[P_ATK] = 0; ab.p[P_DEC] = 80; ab.p[P_SUS] = 0;
+    note(52, 1); run(f, 1.0); note(0, 0); run(f, 0.5);
+    ab.p[P_EDEST] = D_LEVEL; ab.p[P_EAMT] = 100; note(52, 1); run(f, 1.0); note(0, 0); run(f, 0.5);
+    report("14b envelope to pitch, level");
+    ab.p[P_EAMT] = 0; ab.p[P_VELS] = 100; ab.p[P_SUS] = 80;
+    for (k = 1; k <= 127; k += 42) { ab.vel = (uint8_t)k; note(57, 1); run(f, 0.3); note(0, 0); run(f, 0.3); }
+    report("14c velocity 1 .. 127");
+    ab.vel = 100; note(45, 1);
+    for (k = -8192; k < 8192; k += 512) { ab.bend = (int16_t)(k * 2 * 64 / 8192); run(f, 0.03); }
+    note(0, 0); ab.bend = 0; run(f, 0.5); report("14d pitch bend +-2");
+    wav_close(f);
     return 0;
 }

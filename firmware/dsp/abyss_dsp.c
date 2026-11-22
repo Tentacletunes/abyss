@@ -24,6 +24,8 @@ typedef struct {
     volatile uint8_t drone;      /* PLAY: the voice sounds without a key */
     volatile uint8_t trig;       /* counts note starts: a change retriggers the envelope */
     volatile int16_t master;     /* Q15 output level (the MASTER pot) */
+    volatile uint8_t vel;        /* the note's velocity, 1..127 (keys: 100) */
+    volatile int16_t bend;       /* pitch bend, 1/64 semitone */
 } ab_ctl_t;
 
 static ab_ctl_t ab;
@@ -56,6 +58,9 @@ static struct {
     int32_t ftone[2], dc[2];     /* delays: the feedback path's low-pass and DC blocker */
     uint32_t wob_ph[2];          /* delays: WOBBLE's slow sine */
     int32_t wob_rnd[2];          /* delays: WOBBLE's flutter */
+    int16_t haas[512];           /* WIDTH: the dry signal 10 ms ago, to spread it */
+    uint32_t haas_w;
+    int32_t vgain;               /* velocity's level, Q15, at the end of the last block */
 } st;
 
 /* the two delay lines: 32768 samples at FS / 2 each (1.48 s, the top 11 kHz gone: lo-fi, as the PT2399 is) */
@@ -188,6 +193,9 @@ static void dsp_init(void)
         ab.p[i] = AB_P[i].def;
     ab.note = 69;
     ab.master = 26000;
+    ab.vel = 100;
+    ab.bend = 0;
+    st.vgain = 32767;
     st.rng = 0x2545F491u;
     st.ph[1] = 0x55555555u;                      /* the oscillators do not start in phase */
     st.ph[2] = 0xAAAAAAAAu;
@@ -244,6 +252,7 @@ static void dsp_render(int32_t *out, uint32_t n)        /* n == AB_BLOCK; out: L
     uint32_t ftype, dtype, dhold, dsh, dmode;
     int32_t dg, dtk, ddry, dwet, fb[2], xfb, ltk, wdry, wwet, gl[2], gr[2];
     uint32_t tgt[2];
+    int32_t width, haas_k;
 
     /* ---- modulation sources ---- */
     for (k = 0; k < D_COUNT; k++)
@@ -276,6 +285,13 @@ static void dsp_render(int32_t *out, uint32_t n)        /* n == AB_BLOCK; out: L
                 dsum_lvl += d;
         }
     }
+    ab_env_block();                              /* the envelope: a modulator too (ENV MOD) */
+    {
+        int32_t a = ab.p[P_EAMT] * 32767 / 100, dst = ab.p[P_EDEST];
+        mod[dst] += ((st.env >> 9) * a) >> 15;   /* the envelope's 0..1 times AMOUNT (+-) */
+        if (dst == D_LEVEL)
+            dsum_lvl += a < 0 ? -a : a;
+    }
 
     /* ---- pitch ---- */
     chaos = ab.p[P_CHAOS];
@@ -283,7 +299,7 @@ static void dsp_render(int32_t *out, uint32_t n)        /* n == AB_BLOCK; out: L
         int32_t r = (int32_t)ab_rand() >> 16;
         st.drift[k] += (r - st.drift[k]) >> 8;
     }
-    base = (int32_t)ab.note * 64 + ab.p[P_OSC1] * 64 + ((mod[D_PITCH] * 12 * 64) >> 15);
+    base = (int32_t)ab.note * 64 + ab.p[P_OSC1] * 64 + ((mod[D_PITCH] * 12 * 64) >> 15) + ab.bend;
     {
         int32_t det = ab.p[P_DETUNE] * 64 / 100;    /* cents -> 1/64 semitone */
         int32_t o2 = (mod[D_OSC2] * 12 * 64) >> 15;
@@ -325,7 +341,6 @@ static void dsp_render(int32_t *out, uint32_t n)        /* n == AB_BLOCK; out: L
         st.g[k] += (g_t[k] - st.g[k]) >> 2;
 
     /* ---- filter, envelope ---- */
-    ab_env_block();
     cut = ab.p[P_CUTOFF] * 256 + ((ab.p[P_ENVF] * (st.env >> 9)) >> 15) * 325   /* +-100 % = +-127 knob steps */
           + ((mod[D_CUTOFF] * 64 * 256) >> 15);                                /* modulation: +-64 steps */
     cut = ab_clamp(cut, 0, 127 * 256);
@@ -338,7 +353,11 @@ static void dsp_render(int32_t *out, uint32_t n)        /* n == AB_BLOCK; out: L
     damp = 32767 - res * 32000 / 100;            /* Q14: 2.0 (no resonance) .. ~0.05 (rings, self-oscillates) */
 
     e0 = st.vca;
-    e1 = st.env >> 9;                            /* Q15 */
+    {                                            /* VELOCITY: how much a soft note is quieter (0: not at all) */
+        int32_t vg = 32767 - (ab.p[P_VELS] * (127 - (int32_t)ab.vel) * 32767) / (100 * 127);
+        st.vgain = vg;
+    }
+    e1 = ((st.env >> 9) * st.vgain) >> 15;       /* Q15 */
     st.vca = e1;
     l0 = st.lvl;                                 /* LEVEL: 1 - depth x (1 - lfo) / 2, from 1 down to 1 - depth */
     l1 = ab_clamp(32767 - (dsum_lvl >> 1) + (mod[D_LEVEL] >> 1), 0, 32767);
@@ -383,6 +402,8 @@ static void dsp_render(int32_t *out, uint32_t n)        /* n == AB_BLOCK; out: L
     ltk = AB_TONE_K[ab.p[P_DLTONE]] >> 1;        /* Q14 */
     wdry = ab.p[P_WET] <= 50 ? 32767 : (100 - ab.p[P_WET]) * 32767 / 50;
     wwet = ab.p[P_WET] >= 50 ? 32767 : ab.p[P_WET] * 32767 / 50;
+    width = ab.p[P_WIDTH];
+    haas_k = width > 50 ? (width - 50) * 229 : 0;   /* 100: 0.35 */
 
     /* ---- audio rate ---- */
     for (i = 0; i < n; i++) {
@@ -525,6 +546,16 @@ static void dsp_render(int32_t *out, uint32_t n)        /* n == AB_BLOCK; out: L
             st.wc++;
             L = ((x * wdry) >> 15) + (((((wv[0] * gl[0]) >> 15) + ((wv[1] * gl[1]) >> 15)) * wwet) >> 15);
             R = ((x * wdry) >> 15) + (((((wv[0] * gr[0]) >> 15) + ((wv[1] * gr[1]) >> 15)) * wwet) >> 15);
+            {   /* WIDTH: 0 mono, 50 as it is, 100 the sides doubled and the dry voice spread by its own echo 10 ms
+                 * later, added on one side and taken off the other (it cancels in mono) */
+                int32_t mid = (L + R) >> 1, side = (L - R) >> 1, h;
+                side = (side * width) / 50;
+                st.haas[st.haas_w & 511u] = (int16_t)ab_clamp(x, -32767, 32767);
+                h = (st.haas[(st.haas_w - 441u) & 511u] * haas_k) >> 15;
+                st.haas_w++;
+                L = mid + side + h;
+                R = mid - side - h;
+            }
             L = (ab_softclip(L) * master) >> 15;
             R = (ab_softclip(R) * master) >> 15;
             out[2u * i] = L;
