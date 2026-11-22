@@ -342,6 +342,42 @@ static void boot_mark(uint32_t k)
     gfx_flush_rows(196, 201);
 }
 
+/* OCT- and OCT+ held at power-on: a 3 s countdown, then the FM-1's update mode (black screen), where any
+ * installer or the rescue tool can reach it (X0X's and MONK-1's convention, which fm1_rescue.sh tells players).
+ * Let go early: ABYSS starts as usual */
+static void update_mode_countdown(void)
+{
+    uint32_t t0 = fm1_ms, shown = 99u;
+    while ((fm1_in.buttons & 3u) == 3u) {
+        uint32_t left = 3u - (fm1_ms - t0) / 1000u;
+        fm1_wdt_feed();
+        if (fm1_ms - t0 >= 3000u) {
+            gfx_fill(0, 0, 240, 240, RGB(0, 0, 0));
+            gfx_flush_rows(0, 240);
+            blog(0xA8);
+            blog_flush();
+            guard.pending = 0;                 /* on purpose: not a failed start */
+            guard.failed = 0;
+            fm1_audio_stop();
+            usb_detach();
+            fm1_enter_uboot();
+        }
+        if (left != shown) {
+            char n[4];
+            shown = left;
+            n[0] = (char)('0' + left);
+            n[1] = 0;
+            gfx_fill(0, 0, 240, 240, C_BG);
+            gfx_text(MX, 40, &F_LABEL, "UPDATE MODE IN", C_ACC);
+            gfx_text(MX, 70, &F_BIG, n, C_INK);
+            gfx_text(MX, 190, &F_LABEL, "LET GO TO PLAY", C_DIM);
+            gfx_flush_rows(0, 240);
+        }
+    }
+    gfx_fill(0, 0, 240, 240, C_BG);
+    gfx_flush_rows(0, 240);
+}
+
 /* the boot log's last bytes as hex on the screen (REC held at power-on), until any button */
 static void show_boot_log(void)
 {
@@ -416,6 +452,8 @@ static void app_main(void)
     boot_mark(5);
     while (fm1_ms < 900u)                      /* the splash */
         fm1_wdt_feed();
+    if ((fm1_in.buttons & 3u) == 3u)           /* OCT- and OCT+ held at power-on: update mode */
+        update_mode_countdown();
     if ((fm1_in.buttons >> BT_REC) & 1u)       /* REC held at power-on: the boot log, until a key */
     {
         blog_flush();

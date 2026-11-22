@@ -31,7 +31,7 @@ knobs do the same job on every page.
 | GLO | performance mode: the current value huge |
 | PLAY | DRONE on/off (lit while on) |
 | REC | TAP: held, plays the current note |
-| OCT− / OCT+ | octave (both: reset) |
+| OCT− / OCT+ | octave (both: reset); both held at power-on: update mode after a 3 s countdown |
 | Keys | MONO: last note priority; VOICES 2–4: chords; MIDI from the TRS jack and USB (see below) |
 
 | # | Page | K1 | K2 | K3 | K4 |

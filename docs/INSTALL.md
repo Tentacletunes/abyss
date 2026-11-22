@@ -38,7 +38,12 @@ Your user sounds (USER 1–10), the last sound chosen and the MIDI settings stay
 | Stuck in update mode, the installer can't reach it | Run the rescue (below). |
 | It starts, but behaves oddly | Hold **REC** while switching on: the boot log (below). Send a photo. |
 
-**Rescue** (Felucca's tool; it backs up the whole flash to `~/fm1-rescue/` first):
+**Update mode by hand:** switch off, hold **OCT−** and **OCT+** together, switch on, and keep them held through
+the 3 s countdown until the screen goes black. Any installer or the rescue tool can reach it then. Let go during
+the countdown and ABYSS starts as usual.
+
+**Rescue** (Felucca's tool; it backs up the whole flash to `~/fm1-rescue/` first; when it waits for update mode,
+use the OCT− + OCT+ countdown above):
 
 ```
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/hugelton/felucca-bsp/main/tools/fm1_rescue.sh)"
@@ -65,6 +70,7 @@ Each start is one line of codes:
 | one byte | failed starts in a row before this one (3 → update mode, logged `A9`) |
 | `B1 B2` | power and memory guards set up |
 | `C0`–`C5` | screen, flash, sound and presets, keys, audio, USB |
+| `A8` | update mode chosen by hand (OCT− + OCT+) |
 | `C8` | the main loop runs (a good start) |
 | `C9` | still running 2 s later |
 | `EE vv pppppppp …` | a crash: vector and address (send a photo) |
