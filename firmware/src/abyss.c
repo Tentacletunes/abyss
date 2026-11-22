@@ -456,7 +456,10 @@ void fm1_cstart(void)
     fm1_reset_reason();
     p3 = fm1_boot.p3_rst;                      /* (fm1_boot is in .bss, cleared below) */
     src = fm1_boot.rst_src;
-    fm1_wdt_arm(0x0D);
+    fm1_wdt_arm(0x0C);                         /* 4 s: a start that hangs restarts by itself, soon (was 8 s) */
+    fm1_delay_ms(150);                         /* let a battery supply settle after power-on before the flash, the
+                                                * screen and its backlight draw on it (a battery start stayed black
+                                                * the first time, 2026-11-22) */
     if (guard.magic != GUARD_MAGIC) {
         guard.magic = GUARD_MAGIC;
         guard.failed = 0;
