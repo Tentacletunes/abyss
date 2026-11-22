@@ -6,5 +6,6 @@
   ],
   "image": "docs/fmhub.png",
   "color": "#BEA2F7",
-  "sounds": "none"
+  "sounds": "none",
+  "cheat": "https://tentacletunes.github.io/abyss/docs/cheatsheet.html"
 }

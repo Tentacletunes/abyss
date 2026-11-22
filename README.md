@@ -6,6 +6,7 @@
 
 <p align="center">
   <a href="docs/INSTALL.md">Install</a> ·
+  <a href="https://tentacletunes.github.io/abyss/docs/cheatsheet.html">Cheat sheet</a> ·
   <a href="#controls">Controls</a> ·
   <a href="#midi">MIDI</a> ·
   <a href="#presets">Presets</a> ·
@@ -33,7 +34,7 @@ knobs do the same job on every page.
 | K1–K4 | the page's four parameters (turning one makes it the big value) |
 | SELECT | turn through the pages |
 | ALGORITHM | filter cutoff, on every page |
-| PRESETS | turn through the sounds: 10 factory presets, then your saved ones (each loads as you land on it) |
+| PRESETS | turn through the sounds: 14 factory presets, then your saved ones (each loads as you land on it) |
 | MASTER | output level |
 | HOME | next page, round all seventeen |
 | EDIT / ENV | FILTER / ENVELOPE |
