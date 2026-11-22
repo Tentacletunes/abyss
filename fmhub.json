@@ -1,5 +1,5 @@
 {
-  "what": "An experimental noise synth inspired by the APTBS: three cross-modulating oscillators (FM, ring, sync, chaos), six noise types, a resonant LP/BP/HP filter, six drives and two PT2399-style feedback delays. Up to 4 voices, MIDI clock sync, TRS and USB MIDI, 14 sounds and 10 user slots.",
+  "what": "An experimental noise synth inspired by the APTBS x Death By Audio Synthesizer: three cross-modulating oscillators (FM, ring, sync, chaos), six noise types, a resonant filter, six drives, two PT2399-style feedback delays. Up to 4 voices, MIDI clock sync, TRS and USB MIDI, 14 sounds, 10 user slots.",
   "author": "Szabolcs",
   "kinds": [
     "synth"

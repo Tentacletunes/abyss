@@ -2,7 +2,7 @@
 
 <h3 align="center">Experimental noise synthesizer firmware for the M-VAVE FM-1</h3>
 
-<p align="center">Inspired by Death By Audio's APTBS Synthesizer · built on <a href="https://github.com/hugelton/felucca-bsp">felucca-bsp</a></p>
+<p align="center">Inspired by the APTBS x Death By Audio Synthesizer · built on <a href="https://github.com/hugelton/felucca-bsp">felucca-bsp</a></p>
 
 <p align="center">
   <a href="docs/INSTALL.md">Install</a> ·
