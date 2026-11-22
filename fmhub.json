@@ -1,11 +1,12 @@
 {
   "what": "An experimental noise synth inspired by the APTBS x Death By Audio Synthesizer: three cross-modulating oscillators (FM, ring, sync, chaos), six noise types, a resonant filter, six drives, two PT2399-style feedback delays. Up to 4 voices, MIDI clock sync, TRS and USB MIDI, 14 sounds, 10 user slots.",
-  "author": "Szabolcs",
+  "author": "Tentacle",
   "kinds": [
     "synth"
   ],
   "image": "docs/fmhub.png",
   "color": "#BEA2F7",
   "sounds": "none",
-  "cheat": "https://tentacletunes.github.io/abyss/docs/cheatsheet.html"
+  "cheat": "https://tentacletunes.github.io/abyss/docs/cheatsheet.html",
+  "play": "https://tentacletunes.github.io/abyss/emu/"
 }

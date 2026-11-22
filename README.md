@@ -5,6 +5,7 @@
 <p align="center">Inspired by the APTBS x Death By Audio Synthesizer · built on <a href="https://github.com/hugelton/felucca-bsp">felucca-bsp</a></p>
 
 <p align="center">
+  <a href="https://tentacletunes.github.io/abyss/emu/">Play in your browser</a> ·
   <a href="docs/INSTALL.md">Install</a> ·
   <a href="https://tentacletunes.github.io/abyss/docs/cheatsheet.html">Cheat sheet</a> ·
   <a href="#controls">Controls</a> ·
