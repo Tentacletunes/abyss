@@ -1,9 +1,11 @@
 # ABYSS
 
+<p align="center"><img src="docs/fmhub.png" width="360" alt="ABYSS"></p>
+
 Experimental noise synthesizer firmware for the M-VAVE FM-1, inspired by Death By Audio's APTBS Synthesizer.
 Built on [felucca-bsp](https://github.com/hugelton/felucca-bsp) and Felucca's build tools.
 
-**Version 1.0** — up to four voices with spread and glide, MIDI clock sync for the LFOs and delays, TRS and USB
+**Version 1.0.1** — up to four voices with spread and glide, MIDI clock sync for the LFOs and delays, TRS and USB
 MIDI (CCs, pitch bend, program change, sustain, velocity), stereo WIDTH, the envelope as a modulator, the last sound
 remembered over a power-off; three oscillators with FM, cross mod, ring mod, hard sync and CHAOS; six noise types;
 filter (LP/BP/HP), envelope, two LFOs and a random sample-and-hold; six drive types; two PT2399-style feedback
