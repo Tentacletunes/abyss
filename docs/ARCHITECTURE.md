@@ -81,8 +81,27 @@ block. Notes go through `ab.note / ab.gate / ab.trig`.
   the feedback comes down (host test 13). WET/DRY balances voice and echoes.
 * New modulation targets: DRIVE, DELAY TIME (both, ±50 %), FEEDBACK (both, ±50 %).
 
+## Milestone 6: MIDI, width, memory
+
+* **TRS MIDI IN**: Felucca's UART receiver (`src/midi_uart.c`, `hal/fm1_uart.h`), polled from the tick every
+  0.2 ms, feeding the same queue as USB-MIDI. `ui.c midi_poll` filters by MIDI CH and handles notes (velocity 0 =
+  off), pitch bend (± BEND st, added to the pitch base), program change, sustain (deferred note-offs) and the CC map
+  in the README. A CC sets a parameter scaled to its range and marks the sound EDITED.
+* **Velocity**: a gain on the envelope, `1 − VELOCITY·(127 − vel)/127`; keys play at 127.
+* **ENV MOD**: the envelope (computed before the modulation sum) adds AMOUNT × env to any destination.
+* **WIDTH**: mid/side after the delays, side × WIDTH/50; above 50 % a 441-sample (10 ms) delayed copy of the dry
+  signal is added to L and subtracted from R.
+* **Settings memory** (`presets.c set_*`): 8-byte records `{0x5A, entry, MIDI CH, BEND, xor}` appended to the
+  sector at 0xF3000, the last valid one used at boot; erased only when full or holding someone else's data.
+  MIDI CH and BEND are settings, not part of a sound: loading a preset leaves them alone.
+* **Boot guard** (`abyss.c`): a power-on (P3 reset source bit 0) clears the failure count; a start that crashed or
+  hit the 4 s watchdog before the main loop counts as failed, three in a row → the updater. A boot log at 0xF2000
+  is shown by holding REC at power-on.
+
 ## Measurements (fm1-emu, 240 MHz model)
 
+* Milestone 6, FEEDBACK STORM over TRS MIDI with CCs and bend, WIDTH 100 %: ~12 % CPU, 376 µs worst half-buffer,
+  0 late halves.
 * Milestone 4, FEEDBACK STORM preset playing with drive and both delays, the UI busy: **~12 % CPU**, 358 µs worst
   half-buffer of 2 900, 0 late halves. RAM: 15 KiB variables, 241 KiB pool (frame buffer + delay lines) of 360.
 
@@ -97,6 +116,5 @@ The emulator is not cycle-exact; CPU figures must be re-measured on hardware (`c
 
 ## Known limits / not yet done
 
-* No TRS MIDI IN yet, no velocity, no preset storage (Milestone 5 will use the flash sectors Felucca uses).
-* Stereo: the path is stereo but L = R until the stereo delays (Milestone 4).
+* Mono voice (one note at a time); no MIDI out or clock sync.
 * Button roles follow Felucca's measured panel map; if a label is off on your unit, tell me.
