@@ -3,7 +3,7 @@
 ## 1.0.1
 - Update mode by hand: hold OCT− and OCT+ at power-on through a 3 s countdown (for the rescue tool, backups).
 - The install handshake as current felucca-bsp answers it: M-VAVE's updater sees `FM-1_130`, Felucca's and the
-  hub's installers the whole `FM-1_1300`, plus the flash chip's ID (backport of felucca-bsp's `ota.c` handshake;
+  hub's installers the whole `FM-1_1300` (backport of felucca-bsp's `ota.c` handshake;
   `tools/fm1_install.py` and the rescue tool updated to match).
 - `fmhub.json` for The Firmware Hub; README: where ABYSS keeps its data.
 
