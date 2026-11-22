@@ -42,8 +42,8 @@
 extern uint32_t _data_start[], _data_end[], _data_load[], _bss_start[], _bss_end[];
 extern uint32_t _rt_start[], _rt_end[], _rt_load[], _pool_start[], _pool_end[];
 
-/* the boot-loop guard, in RAM that survives a reset: a start that ends in a crash or a watchdog reset before it has
- * run 2 s counts as failed; two in a row and the FM-1 waits in its update mode for an installer. A power-off is not a
+/* the boot-loop guard, in RAM that survives a reset: a start that ends in a crash or a watchdog reset before its
+ * main loop runs counts as failed; three in a row and the FM-1 waits in its update mode for an installer. A power-off is not a
  * failure: switched off, the FM-1 can restart a few times as its supply falls (the RAM kept), and those starts
  * must not count, or the next power-on finds the count at two (found on hardware, 2026-11-19) */
 static struct { uint32_t magic, pending, failed, crashed; } guard __attribute__((section(".noinit")));
@@ -415,11 +415,16 @@ static void app_main(void)
             blog_main = 1;
             blog(0xC8);
         }
-        if (!boots_ok && now > 2000u) {
-            blog(0xC9);        /* it runs: the next boot is not a loop */
+        if (!boots_ok) {                       /* the start is done once the main loop runs: whatever happens
+                                                * later (a hang while the switch is off and USB still powers the
+                                                * chip, 2026-11-22) is not a failed start */
             boots_ok = 1;
             guard.pending = 0;
             guard.failed = 0;
+        }
+        if (blog_main == 1u && now > 2000u) {
+            blog_main = 2;
+            blog(0xC9);
         }
         ui_poll();
         if (now - last_pot >= 20u) {           /* MASTER: an audio taper */
@@ -485,7 +490,7 @@ void fm1_cstart(void)
                                                 * switch, while USB keeps the RAM alive) into its update mode */
     blog_open((uint8_t)p3, (uint8_t)src);
     blog((uint8_t)guard.failed);
-    if (guard.failed >= 2u) {
+    if (guard.failed >= 3u) {                  /* three starts in a row that never reached the main loop */
         blog(0xA9);
         guard.failed = 0;
         guard.pending = 0;
