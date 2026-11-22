@@ -1,17 +1,27 @@
-# ABYSS
+<p align="center"><img src="docs/fmhub.png" width="280" alt="ABYSS"></p>
 
-<p align="center"><img src="docs/fmhub.png" width="360" alt="ABYSS"></p>
+<h3 align="center">Experimental noise synthesizer firmware for the M-VAVE FM-1</h3>
 
-Experimental noise synthesizer firmware for the M-VAVE FM-1, inspired by Death By Audio's APTBS Synthesizer.
-Built on [felucca-bsp](https://github.com/hugelton/felucca-bsp) and Felucca's build tools.
+<p align="center">Inspired by Death By Audio's APTBS Synthesizer · built on <a href="https://github.com/hugelton/felucca-bsp">felucca-bsp</a></p>
+
+<p align="center">
+  <a href="docs/INSTALL.md">Install</a> ·
+  <a href="#controls">Controls</a> ·
+  <a href="#midi">MIDI</a> ·
+  <a href="#presets">Presets</a> ·
+  <a href="docs/ARCHITECTURE.md">Architecture</a> ·
+  <a href="https://thefirmwarehub.com">The Firmware Hub</a>
+</p>
+
+<p align="center"><img src="docs/screens.png" width="100%" alt="ABYSS screens: a preset, VOICE, LFO 1 synced to MIDI clock, DELAY 1"></p>
+
+## About
 
 **Version 1.0.1** — up to four voices with spread and glide, MIDI clock sync for the LFOs and delays, TRS and USB
 MIDI (CCs, pitch bend, program change, sustain, velocity), stereo WIDTH, the envelope as a modulator, the last sound
 remembered over a power-off; three oscillators with FM, cross mod, ring mod, hard sync and CHAOS; six noise types;
 filter (LP/BP/HP), envelope, two LFOs and a random sample-and-hold; six drive types; two PT2399-style feedback
-delays. 14 factory sounds and 10 user slots. See `docs/ARCHITECTURE.md`; installing: `docs/INSTALL.md`.
-
-![screens](docs/screens.png)
+delays. 14 factory sounds and 10 user slots.
 
 ## Controls
 
