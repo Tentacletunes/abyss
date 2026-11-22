@@ -471,7 +471,14 @@ void fm1_cstart(void)
         guard.pending = 0;
         guard.crashed = 0;
     }
-    /* the last start did not reach 2 s AND it ended in a crash (fm1_fault) or the watchdog (P3_RST_SRC bit 2) */
+    if (p3 & 0x01u) {                          /* a power-on (P3_RST_SRC bit 0) is never part of a boot loop: the
+                                                * hardware log (2026-11-22) showed power-ons arriving with the count
+                                                * at 9, run up by restarts while the supply fell, and sent to UBOOT */
+        guard.failed = 0;
+        guard.pending = 0;
+        guard.crashed = 0;
+    }
+    /* the last start did not reach the main loop AND it ended in a crash (fm1_fault) or the watchdog (bit 2) */
     failed_start = guard.pending && (guard.crashed || (p3 & 0x04u));
     guard.failed = failed_start ? guard.failed + 1u : 0u;
     guard.crashed = 0;
