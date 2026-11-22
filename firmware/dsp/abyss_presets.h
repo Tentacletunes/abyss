@@ -14,10 +14,10 @@ static const ab_preset_t AB_FACTORY[] = {
         {P_ATK, 70}, {P_DEC, 90}, {P_SUS, 90}, {P_REL, 105}, {P_CHAOS, 15}, {P_XMOD, 10},
         {P_L1RATE, 30}, {P_L1DEPTH, 35}, {P_L1WAVE, LW_TRI}, {P_L1DEST, D_CUTOFF}, {P_DTYPE, X_SOFT}, {P_DRIVE, 30}, {P_DTONE, 60}, {P_WET, 32}, {P_T1, 72}, {P_FB1, 50}, {P_T2, 95}, {P_FB2, 40}, {P_DLTONE, 45}, {P_MOD1, 20}, {P_LVL1, 50}, {P_LVL2, 40}, {P_LVL3, 40}, END}},
     {"METALLIC MACHINE", {
-        {P_WAVE1, W_SQR}, {P_LVL1, 100}, {P_OSC2, 19}, {P_WAVE2, W_SINE}, {P_LVL2, 90}, {P_FM, 55}, {P_RING, 60}, {P_OSC3, 31}, {P_LVL3, 30},
-        {P_NOISE, 20}, {P_NTYPE, N_METAL}, {P_CUTOFF, 105}, {P_RES, 40},
-        {P_ATK, 0}, {P_DEC, 55}, {P_SUS, 30}, {P_REL, 60},
-        {P_L1RATE, 85}, {P_L1DEPTH, 40}, {P_L1WAVE, LW_SQR}, {P_L1DEST, D_FM}, {P_DTYPE, X_FOLD}, {P_DRIVE, 35}, {P_DMIX, 60}, {P_WET, 28}, {P_DMODE, DM_PARALLEL}, {P_T1, 30}, {P_T2, 42}, {P_FB1, 45}, {P_FB2, 45}, {P_PAN1, -90}, {P_PAN2, 90}, END}},
+        {P_OSC1, -24}, {P_WAVE1, W_SQR}, {P_LVL1, 100}, {P_OSC2, 19}, {P_WAVE2, W_SINE}, {P_LVL2, 90}, {P_FM, 55}, {P_RING, 60}, {P_OSC3, 31}, {P_LVL3, 30},
+        {P_NOISE, 65}, {P_NTYPE, N_METAL}, {P_CUTOFF, 105}, {P_RES, 40},
+        {P_ATK, 100}, {P_DEC, 90}, {P_SUS, 90}, {P_REL, 110},
+        {P_L1RATE, 85}, {P_L1DEPTH, 40}, {P_L1WAVE, LW_SQR}, {P_L1DEST, D_FM}, {P_DTYPE, X_FOLD}, {P_DRIVE, 70}, {P_DMIX, 100}, {P_WET, 28}, {P_DMODE, DM_PARALLEL}, {P_T1, 30}, {P_T2, 42}, {P_FB1, 45}, {P_FB2, 45}, {P_PAN1, -90}, {P_PAN2, 90}, END}},
     {"BROKEN OSC", {
         {P_SYNC, S_2}, {P_WAVE2, W_SAW}, {P_OSC2, 14}, {P_CHAOS, 55}, {P_LVL1, 40}, {P_LVL2, 90}, {P_LVL3, 0},
         {P_CUTOFF, 95}, {P_RES, 30}, {P_ATK, 5}, {P_SUS, 80},
