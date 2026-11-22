@@ -29,6 +29,8 @@
 #include "fm1_flash.h"
 #include "libc.c"
 #include "usb.c"
+static uint32_t flash_jedec;                   /* the flash chip read at boot: the installer sees it in the handshake */
+#define OTA_FLASH_ID() flash_jedec
 #include "ota.c"
 #include "midi_uart.c"                       /* TRS MIDI IN (Felucca's, GPL-3.0): into the same queue as USB */
 
@@ -382,6 +384,7 @@ static void app_main(void)
     {
         uint32_t f = irq_save(), id = FL_FAR(fl_jedec_ram)();
         irq_restore(f);
+        flash_jedec = id;
         flash_ok = id == 0x856014u || id == 0xB36014u;   /* the 1 MiB parts FM-1s have */
         if (flash_ok)
             ota_boot_cleanup();

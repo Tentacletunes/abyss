@@ -128,13 +128,33 @@ static int ota_send_msg(uint32_t cmd, const uint8_t *body, uint32_t n)   /* n <=
     return ota_wire_send(ota_wire, w);
 }
 
-static void ota_reply_identity(void)
+/* the flash's JEDEC ID for the identity reply (a firmware defines it before including this file: the ID it read at
+ * boot), 0: not read (backported from felucca-bsp 2bd9dbe) */
+#ifndef OTA_FLASH_ID
+#define OTA_FLASH_ID() 0u
+#endif
+_Static_assert(sizeof FELUCCA_ID <= 24u, "FELUCCA_ID: 23 characters at most (the JEDEC ID follows at byte 24)");
+/* full 0: the name, '_' and three digits (M-UPGRADE 3.11's limit); 1: the whole identity. The loader's is whole */
+static void ota_reply_identity(int full)
 {
     static const char ID[] = FELUCCA_ID;         /* == the package marker string */
     uint8_t id[27];
-    uint32_t i;
+    uint32_t i, n = sizeof ID - 1u, j = OTA_FLASH_ID();
+#ifndef FELUCCA_LOADER
+    if (!full) {
+        for (i = 0; i < n && ID[i] != '_'; i++)
+            ;
+        if (i + 4u < n)
+            n = i + 4u;                          /* "FM-1_6010000" -> "FM-1_601"; "FM-1_600" stays */
+    }
+#else
+    (void)full;
+#endif
     for (i = 0; i < sizeof id; i++)
-        id[i] = i < sizeof ID - 1u ? (uint8_t)ID[i] : 0;
+        id[i] = i < n ? (uint8_t)ID[i] : 0;
+    id[24] = (uint8_t)(j >> 16);                 /* bytes 24..26: the JEDEC ID (installers read the text up to its */
+    id[25] = (uint8_t)(j >> 8);                  /* first 0; ID is shorter than 24) */
+    id[26] = (uint8_t)j;
     ota_send_msg(0x11, id, sizeof id);
 }
 
@@ -156,13 +176,29 @@ static uint32_t ota_take(void)
     return d;
 }
 
+/* the decoded frame (d: its length) a handshake? 1 the plain query, 2 the one with the body 01 (not the loader's),
+ * 0 neither */
+static int ota_hs(uint32_t d)
+{
+    if (d < 7u || ota_dec[2] != 0x11)
+        return 0;
+    if (d == 7u)
+        return 1;
+#ifndef FELUCCA_LOADER
+    if (d == 8u && ota_dec[6] == 1u)
+        return 2;
+#endif
+    return 0;
+}
+
 /* main loop, outside a session: answer handshakes. Returns the frame's decoded length (0: none), the frame in
  * ota_dec, for a firmware's own commands in the same framing (cmd ota_dec[2], the body from ota_dec + 6) */
 static uint32_t ota_service(void)
 {
     uint32_t d = ota_take();
-    if (d == 7u && ota_dec[2] == 0x11)
-        ota_reply_identity();
+    int h = ota_hs(d);
+    if (h)
+        ota_reply_identity(h == 2);
     return d;
 }
 
@@ -189,8 +225,8 @@ static int ota_read(uint32_t addr, uint8_t *dst, uint32_t len)
             d = ota_take();
             if (!d)
                 continue;
-            if (d == 7u && ota_dec[2] == 0x11) {
-                ota_reply_identity();
+            if (ota_hs(d)) {
+                ota_reply_identity(ota_hs(d) == 2);
                 continue;
             }
             if (d == len + 15u && ota_dec[2] == 0x30 && ota_rd24(ota_dec + 3) == len + 8u &&

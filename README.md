@@ -109,6 +109,13 @@ JieLi toolchain and three files of the AC79 SDK (see `build_mac.sh`). Then:
 
 Host DSP test (any C compiler): `cc -O2 -Ibuild/gen -Ifirmware/dsp host/render.c -o build/render && build/render build/wav`
 
+## Your data and other firmwares
+
+ABYSS keeps its user sounds, settings and boot log in flash 0xF0000–0xF3FFF (Felucca's area for a firmware's own
+data). It does not read other firmwares' saved projects, and a firmware installed after it may use the same area,
+so **back up first** (the rescue tool in `docs/INSTALL.md` saves the whole flash). If ABYSS finds data that is
+not its own there, it starts its areas afresh.
+
 ## Install / recovery
 
 See [docs/INSTALL.md](docs/INSTALL.md): installing, updating, going back to the official firmware, recovery, and

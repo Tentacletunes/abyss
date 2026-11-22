@@ -133,7 +133,7 @@ def ld_regions():
     return regs
 
 
-VERSION = "1.0"                                     # the release; the splash shows it with the commit
+VERSION = "1.0.1"                                     # the release; the splash shows it with the commit
 
 
 def build_tag():
