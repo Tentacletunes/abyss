@@ -28,6 +28,8 @@ enum {
     /* Milestone 6: ENV MOD, OUTPUT (P_MIDICH and P_BEND are settings: presets neither set nor change them) */
     P_EDEST, P_EAMT, P_VELS,
     P_WIDTH, P_MIDICH, P_BEND,
+    /* v1.0: VOICE page; MIDI clock sync (a setting) */
+    P_VOICES, P_VSPREAD, P_GLIDE, P_CLOCK,
     P_COUNT
 };
 
@@ -56,6 +58,8 @@ enum {                       /* how a value reads on the screen */
     FMT_PAN,                 /* -100..100 -> "L 40", "C", "R 40" */
     FMT_MIDICH,              /* 0 OMNI, 1..16 */
     FMT_BEND,                /* semitones -> "2 st" */
+    FMT_VOICES,              /* 1 MONO, 2..4 */
+    FMT_ONOFF,               /* 0 OFF, 1 ON */
 };
 
 typedef struct {
@@ -129,7 +133,22 @@ static const ab_param_t AB_P[P_COUNT] = {
     [P_WIDTH] = {"STEREO WIDTH", "WIDTH", 0, 100, 50, FMT_PCT, 0},
     [P_MIDICH] = {"MIDI CHANNEL", "MIDI CH", 0, 16, 0, FMT_MIDICH, 1},
     [P_BEND] = {"PITCH BEND RANGE", "BEND", 0, 24, 2, FMT_BEND, 1},
+    [P_VOICES] = {"VOICES", "VOICES", 1, 4, 1, FMT_VOICES, 1},
+    [P_VSPREAD] = {"VOICE SPREAD", "SPREAD", 0, 100, 0, FMT_CENT, 0},
+    [P_GLIDE] = {"GLIDE", "GLIDE", 0, 100, 0, FMT_PCT, 0},
+    [P_CLOCK] = {"MIDI CLOCK SYNC", "CLOCK", 0, 1, 0, FMT_ONOFF, 1},
 };
+
+/* MIDI CLOCK SYNC: the knob's divisions, in 1/96 of a quarter note. LFO and RANDOM rates (slow .. fast), delay
+ * times (short .. long) */
+#define AB_LDIV_N 16u
+static const uint16_t AB_LDIV_U[AB_LDIV_N] = {3072, 1536, 768, 384, 288, 192, 144, 128, 96, 72, 64, 48, 32, 24, 16, 12};
+static const char *const AB_LDIV_NAME[AB_LDIV_N] = {"8 BARS", "4 BARS", "2 BARS", "1 BAR", "1/2.", "1/2", "1/4.",
+                                                    "1/2T", "1/4", "1/8.", "1/4T", "1/8", "1/8T", "1/16", "1/16T", "1/32"};
+#define AB_DDIV_N 13u
+static const uint16_t AB_DDIV_U[AB_DDIV_N] = {12, 16, 24, 32, 36, 48, 64, 72, 96, 128, 144, 192, 384};
+static const char *const AB_DDIV_NAME[AB_DDIV_N] = {"1/32", "1/16T", "1/16", "1/8T", "1/16.", "1/8", "1/4T", "1/8.",
+                                                    "1/4", "1/2T", "1/4.", "1/2", "1/1"};
 
 static const char *const AB_WAVE_NAME[W_COUNT] = {"SINE", "TRIANGLE", "SAW", "SQUARE"};
 static const char *const AB_WAVE_BRIEF[W_COUNT] = {"SIN", "TRI", "SAW", "SQR"};
@@ -150,4 +169,4 @@ static const char *const AB_DTYPE_BRIEF[X_COUNT] = {"SOFT", "HARD", "FOLD", "FUZ
 static const char *const AB_DMODE_NAME[DM_COUNT] = {"SERIES", "PARALLEL"};
 
 /* settings, not sound: a preset load leaves them as they are */
-static int ab_is_setting(uint32_t i) { return i == P_MIDICH || i == P_BEND; }
+static int ab_is_setting(uint32_t i) { return i == P_MIDICH || i == P_BEND || i == P_CLOCK; }

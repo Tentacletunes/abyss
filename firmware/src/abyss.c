@@ -201,13 +201,27 @@ static void audio_silence(void)                /* (interrupts off) the DMA would
 static uint32_t blog_at;
 static uint8_t blog_on;
 static uint32_t blog_id;
+/* the bytes are gathered in RAM that survives a reset and written to flash once per start, at the 2 s healthy
+ * point, a fault or the drop to UBOOT (was a flash write per byte, ~16 a start); a start killed by the watchdog
+ * before that leaves them here and the next start writes them first */
+#define BLOG_MAGIC 0x474F4C42u
+static struct { uint32_t magic, n; uint8_t b[48]; } blog_ram __attribute__((section(".noinit")));
+static void blog_flush(void)
+{
+    uint32_t n = blog_ram.n;
+    if (blog_ram.magic != BLOG_MAGIC || !n || n > sizeof blog_ram.b)
+        return;
+    if (blog_on && blog_at + n <= BLOG_END && !fl_write(BLOG_SECT + blog_at, blog_ram.b, n))
+        blog_at += n;
+    blog_ram.n = 0;
+}
 static void blog(uint8_t b)
 {
-    uint8_t v = b;
-    if (!blog_on || blog_at >= BLOG_END)
+    if (!blog_on)
         return;
-    if (!fl_write(BLOG_SECT + blog_at, &v, 1))
-        blog_at++;
+    if (blog_ram.n >= sizeof blog_ram.b)
+        blog_flush();
+    blog_ram.b[blog_ram.n++] = b;
 }
 static void blog32(uint32_t v)
 {
@@ -239,6 +253,9 @@ static void blog_open(uint8_t p3, uint8_t src)
         blog_at = 0;
     }
     blog_on = 1;
+    blog_flush();                              /* the last start's bytes, if it never wrote them (the watchdog) */
+    blog_ram.magic = BLOG_MAGIC;
+    blog_ram.n = 0;
     blog(0xB0);
     blog(p3);
     blog(src);
@@ -257,6 +274,7 @@ static void fm1_fault(const fm1_crash_t *c)
     blog((uint8_t)c->vec);
     blog32(c->pc);
     blog32(c->rets);
+    blog_flush();
     gfx_fill(0, 0, 240, 240, RGB(0x90, 0x10, 0x18));
     gfx_text(MX, 30, &F_TITLE, "ABYSS CRASH", C_INK);
     for (i = 0; i < 8u; i++)
@@ -396,7 +414,10 @@ static void app_main(void)
     while (fm1_ms < 900u)                      /* the splash */
         fm1_wdt_feed();
     if ((fm1_in.buttons >> BT_REC) & 1u)       /* REC held at power-on: the boot log, until a key */
+    {
+        blog_flush();
         show_boot_log();
+    }
     {                                          /* what the scan settled on meanwhile is not a turn, nor a press */
         uint32_t i, rel;
         for (i = 0; i < FM1_NENC; i++)
@@ -436,6 +457,7 @@ static void app_main(void)
         if (blog_main == 1u && now > 2000u) {
             blog_main = 2;
             blog(0xC9);
+            blog_flush();                      /* the start's one flash write */
         }
         ui_poll();
         set_service(pr_entry(ui.pr_cur));
@@ -511,6 +533,7 @@ void fm1_cstart(void)
     blog((uint8_t)guard.failed);
     if (guard.failed >= 3u) {                  /* three starts in a row that never reached the main loop */
         blog(0xA9);
+        blog_flush();
         guard.failed = 0;
         guard.pending = 0;
         fm1_enter_uboot();

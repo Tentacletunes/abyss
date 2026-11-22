@@ -5,7 +5,7 @@
  *   K1..K4, SELECT, ALGORITHM, PRESETS   the page's seven parameters, in that order
  *   MASTER pot                            output level
  *   HOME   MAIN (again: CROSS -> SHAPE -> LEVELS -> MAIN)     ENV   envelope        EDIT  FILTER
- *   LFO    LFO 1 -> LFO 2 -> RANDOM                 FX    DRIVE -> DELAY 1 -> DELAY 2 -> DELAYS    SAVE  PRESETS
+ *   LFO    LFO 1 -> LFO 2 -> RANDOM -> ENV MOD                 FX    DRIVE -> DELAY 1 -> DELAY 2 -> DELAYS    SAVE  PRESETS
  *   GLO    performance mode: the last touched value, huge
  *   PLAY   DRONE on / off: the voice sounds without a key
  *   REC    TAP: held, it plays the current note (APTBS's tap pad)
@@ -25,7 +25,7 @@
 /* One topic a page, four parameters on K1..K4. HOME steps through the pages, SELECT turns through them; the left
  * knobs keep one job each everywhere: SELECT the page, ALGORITHM the filter, PRESETS (Milestone 5) the presets */
 enum { PG_OSC1, PG_OSC2, PG_OSC3, PG_NOISE, PG_CROSS, PG_FILTER, PG_ENV, PG_DRIVE, PG_DLY1, PG_DLY2, PG_DLYS,
-       PG_LFO1, PG_LFO2, PG_RAND, PG_ENVMOD, PG_OUT, PG_PRESET, PG_COUNT };
+       PG_LFO1, PG_LFO2, PG_RAND, PG_ENVMOD, PG_VOICE, PG_OUT, PG_PRESET, PG_COUNT };
 #define PG_CYCLE PG_PRESET                /* HOME and SELECT go round the pages before this one */
 typedef struct {
     const char *tag;                      /* the page's name, top right */
@@ -49,7 +49,8 @@ static const page_t PAGES[PG_COUNT] = {
     [PG_LFO2] = {"LFO 2", {P_L2RATE, P_L2DEPTH, P_L2WAVE, P_L2DEST}, 0},
     [PG_RAND] = {"RANDOM", {P_RRATE, P_RDEPTH, P_RSMOOTH, P_RDEST}, 0},
     [PG_ENVMOD] = {"ENV MOD", {P_EDEST, P_EAMT, P_VELS, -1}, 0},
-    [PG_OUT] = {"OUTPUT", {P_WIDTH, P_MIDICH, P_BEND, -1}, 0},
+    [PG_VOICE] = {"VOICE", {P_VOICES, P_VSPREAD, P_GLIDE, -1}, 0},
+    [PG_OUT] = {"OUTPUT", {P_WIDTH, P_MIDICH, P_BEND, P_CLOCK}, 0},
     [PG_PRESET] = {"PRESETS", NONE4, 0},   /* (its own drawing: the sound's name, SAVE TO) */
 };
 
@@ -91,6 +92,9 @@ static struct {
     uint32_t msg_ms;                      /* "SAVED": until when */
     int8_t msg_ok;
     int32_t wave_gain;                    /* waveform display gain, Q8 */
+    uint32_t vage[AB_NV], vclock;         /* VOICES 2..4: when each voice was started */
+    uint8_t nv;                           /* VOICES as last seen (a change lets every voice go) */
+    uint32_t ck_ms[32], ck_n, ck_last;    /* MIDI clock: the last ticks' times */
 } ui;
 
 /* ------------------------------------------------------------- notes --- */
@@ -105,6 +109,51 @@ static void voice_update(uint32_t retrig)
         ab.gate = ui.tap;
     }
 }
+/* VOICES 2..4: a note gets the voice already on it, else the one let go longest ago, else the oldest */
+static uint32_t nvoices(void) { return ab.p[P_VOICES] < 2 ? 1u : ab.p[P_VOICES] > (int)AB_NV ? AB_NV : (uint32_t)ab.p[P_VOICES]; }
+static void poly_on(uint32_t n)
+{
+    uint32_t k, nv = nvoices(), best = AB_NV, bage = 0;
+    for (k = 0; k < nv && best == AB_NV; k++)
+        if (ab.vgate[k] && ab.vnote[k] == n)
+            best = k;
+    if (best == AB_NV) {                                   /* free: the one let go longest ago */
+        for (k = 0; k < nv; k++)
+            if (!ab.vgate[k] && (best == AB_NV || ui.vage[k] < bage)) {
+                best = k;
+                bage = ui.vage[k];
+            }
+    }
+    if (best == AB_NV)                                     /* all held: the oldest note gives way */
+        for (k = 0; k < nv; k++)
+            if (best == AB_NV || ui.vage[k] < bage) {
+                best = k;
+                bage = ui.vage[k];
+            }
+    ab.vnote[best] = (uint8_t)n;
+    ab.vvel[best] = ab.vel;
+    ab.vtrig[best]++;
+    ab.vgate[best] = 1;
+    ab.vused |= (uint8_t)(1u << best);
+    ab.vlead = (uint8_t)best;
+    ab.note = (uint8_t)n;
+    ui.vage[best] = ++ui.vclock;
+}
+static void poly_off(uint32_t n)
+{
+    uint32_t k;
+    for (k = 0; k < AB_NV; k++)
+        if (ab.vgate[k] && ab.vnote[k] == n) {
+            ab.vgate[k] = 0;
+            ui.vage[k] = ++ui.vclock;
+        }
+}
+static void poly_all_off(void)
+{
+    uint32_t k;
+    for (k = 0; k < AB_NV; k++)
+        ab.vgate[k] = 0;
+}
 static void note_on(uint32_t n)
 {
     uint32_t i, j;
@@ -118,7 +167,10 @@ static void note_on(uint32_t n)
         ui.nstack--;
     }
     ui.stack[ui.nstack++] = (uint8_t)n;
-    voice_update(1);
+    if (nvoices() > 1u)
+        poly_on(n);
+    else
+        voice_update(1);
 }
 static void note_release(uint32_t n);
 static void note_off(uint32_t n)                /* (sustain pedal down: kept until it comes up) */
@@ -136,7 +188,9 @@ static void note_release(uint32_t n)
         if (ui.stack[i] != n)
             ui.stack[j++] = ui.stack[i];
     ui.nstack = (uint8_t)j;
-    if (top)
+    if (nvoices() > 1u)
+        poly_off(n);
+    else if (top)
         voice_update(0);                           /* legato back to the note still held */
 }
 static uint32_t key_note(uint32_t k) { return 53u + k + (uint32_t)(ui.octave * 12); }   /* key 0 = F3 */
@@ -191,8 +245,12 @@ static void button(uint32_t b)
     case BT_PLAY: ab.drone ^= 1u; break;
     case BT_REC:
         ui.tap = 1;
-        ab.trig++;
-        voice_update(0);
+        if (nvoices() > 1u)
+            poly_on(ab.note);
+        else {
+            ab.trig++;
+            voice_update(0);
+        }
         break;
     case BT_OCTDN:
     case BT_OCTUP: {
@@ -227,12 +285,29 @@ static void midi_poll(void)
         ui.nstack = 0;
         ui.sus = 0;
         voice_update(0);
+        poly_all_off();
         return;
     }
     while (mi_r != mi_w) {
         uint32_t pkt = midi_in_q[mi_r % MQ], st = (pkt >> 8) & 0xF0u, ch = (pkt >> 8) & 0x0Fu;
-        uint32_t d1 = (pkt >> 16) & 0x7Fu, d2 = pkt >> 24 & 0x7Fu;
+        uint32_t d1 = (pkt >> 16) & 0x7Fu, d2 = pkt >> 24 & 0x7Fu, t = midi_in_ms[mi_r % MQ];
         mi_r++;
+        if (((pkt >> 8) & 0xFFu) == 0xF8u) {       /* MIDI clock, 24 a beat: the tempo over the last beat */
+            ui.ck_ms[ui.ck_n++ & 31u] = t;
+            ui.ck_last = t;
+            if (ui.ck_n > 24u) {
+                uint32_t dt = t - ui.ck_ms[(ui.ck_n - 25u) & 31u], q;
+                if (dt >= 100u && dt <= 3000u) {   /* 20 .. 600 BPM */
+                    q = dt * AB_FS / 1000u;
+                    ab.spq = ab.spq && (q > ab.spq ? q - ab.spq : ab.spq - q) < ab.spq / 8u ? (ab.spq * 3u + q) / 4u : q;
+                }
+            }
+            continue;
+        }
+        if (((pkt >> 8) & 0xFFu) == 0xFAu) {       /* START: the LFOs from the top */
+            ab.clk_start++;
+            continue;
+        }
         if (st < 0x80u || st == 0xF0u || (ab.p[P_MIDICH] && ch != (uint32_t)ab.p[P_MIDICH] - 1u))
             continue;
         switch (st) {
@@ -262,6 +337,7 @@ static void midi_poll(void)
         case 0xB0u:
             switch (d1) {
             case 1u: cc_set(P_L1DEPTH, d2); break;
+            case 5u: cc_set(P_GLIDE, d2); break;
             case 16u: case 17u: case 18u: case 19u:
                 cc_set(PAGES[ui.page].slot[d1 - 16u], d2);
                 break;
@@ -288,6 +364,7 @@ static void midi_poll(void)
                 ui.sus = 0;
                 ui.sus_bits[0] = ui.sus_bits[1] = ui.sus_bits[2] = ui.sus_bits[3] = 0;
                 voice_update(0);
+                poly_all_off();
                 break;
             }
             break;
@@ -314,7 +391,21 @@ static void ui_poll(void)                      /* keys, buttons, knobs, MIDI: of
             button(i);
     if (((rel >> BT_REC) & 1u) && ui.tap) {
         ui.tap = 0;
-        voice_update(0);
+        if (nvoices() > 1u)
+            poly_off(ab.note);
+        else
+            voice_update(0);
+    }
+    if (nvoices() != ui.nv) {                      /* VOICES changed (a knob, a preset): every voice let go */
+        ui.nv = (uint8_t)nvoices();
+        poly_all_off();
+        ab.gate = 0;
+        if (ui.nv == 1u)
+            voice_update(0);
+    }
+    if (ab.spq && fm1_ms - ui.ck_last > 600u) {    /* the clock stopped: free running again */
+        ab.spq = 0;
+        ui.ck_n = 0;
     }
     for (i = 0; i < FM1_NENC; i++) {
         int32_t s = fm1_enc_take(i), pi;
@@ -366,7 +457,7 @@ static void ui_leds(void)
 {
     static const uint8_t PAGE_BTN[PG_COUNT] = {BT_HOME, BT_HOME, BT_HOME, BT_HOME, BT_HOME, BT_EDIT, BT_ENV,
                                                BT_FX, BT_FX, BT_FX, BT_FX, BT_LFO, BT_LFO, BT_LFO, BT_LFO,
-                                               BT_HOME, BT_SAVE};
+                                               BT_HOME, BT_HOME, BT_SAVE};
     uint32_t i;
     for (i = 0; i < 14u; i++) {
         uint32_t on = i == PAGE_BTN[ui.page] || (i == BT_PLAY && ab.drone) || (i == BT_GLO && ui.perf) ||
@@ -453,6 +544,8 @@ static void value_text(int32_t pi, char *num, char *unit, uint32_t brief)
         else put_u(put_s(num, "CH "), (uint32_t)v);
         break;
     case FMT_BEND: put_u(num, (uint32_t)v); put_s(unit, brief ? "st" : " st"); break;
+    case FMT_VOICES: if (v <= 1) put_s(num, "MONO"); else put_u(num, (uint32_t)v); break;
+    case FMT_ONOFF: put_s(num, v ? "ON" : "OFF"); break;
     case FMT_FTYPE: put_s(num, brief ? AB_FTYPE_BRIEF[v] : AB_FTYPE_NAME[v]); break;
     case FMT_DTYPE: put_s(num, brief ? AB_DTYPE_BRIEF[v] : AB_DTYPE_NAME[v]); break;
     case FMT_DMODE: put_s(num, AB_DMODE_NAME[v]); break;
@@ -462,12 +555,20 @@ static void value_text(int32_t pi, char *num, char *unit, uint32_t brief)
         break;
     case FMT_DTIME: {
         uint32_t m10 = AB_DTIME_MS10[v];
+        if (ab_synced()) {                         /* MIDI CLOCK: a note division */
+            put_s(num, AB_DDIV_NAME[(uint32_t)v * AB_DDIV_N / 128u]);
+            break;
+        }
         if (m10 >= 10000u) { put_fix(num, m10, 10000u, 2u); put_s(unit, brief ? "s" : " s"); }
         else { put_u(num, (m10 + 5u) / 10u); put_s(unit, brief ? "ms" : " ms"); }
         break;
     }
     case FMT_LFOHZ: {
         uint32_t h = AB_LFO_HZ100[v];
+        if (ab_synced()) {
+            put_s(num, AB_LDIV_NAME[(uint32_t)v >> 3]);
+            break;
+        }
         if (h < 100u && !brief) put_fix(num, h, 100u, 2u);
         else if (h < 1000u) put_fix(num, h < 5u ? 5u : h, 100u, 1u);   /* (brief: "0.4", never "0.0") */
         else put_u(num, (h + 50u) / 100u);

@@ -54,6 +54,33 @@ static const ab_preset_t AB_FACTORY[] = {
         {P_RRATE, 90}, {P_RDEPTH, 55}, {P_RSMOOTH, 20}, {P_RDEST, D_CUTOFF},
         {P_L1RATE, 75}, {P_L1DEPTH, 50}, {P_L1WAVE, LW_SQR}, {P_L1DEST, D_PITCH},
         {P_L2RATE, 60}, {P_L2DEPTH, 50}, {P_L2WAVE, LW_SAW}, {P_L2DEST, D_RES}, {P_DTYPE, X_FUZZ}, {P_DRIVE, 50}, {P_WET, 45}, {P_DMODE, DM_PARALLEL}, {P_XFB, 40}, {P_FB1, 70}, {P_FB2, 65}, {P_T1, 48}, {P_T2, 61}, {P_LVL1, 50}, {P_LVL2, 45}, {P_LVL3, 45}, END}},
+    /* v1.0: VOICES, GLIDE, ENV MOD, WIDTH */
+    {"GHOST CHOIR", {
+        {P_VOICES, 4}, {P_VSPREAD, 30}, {P_WAVE1, W_SAW}, {P_OSC2, 12}, {P_WAVE2, W_TRI}, {P_OSC3, 7}, {P_WAVE3, W_SAW},
+        {P_DETUNE, 14}, {P_LVL1, 55}, {P_LVL2, 45}, {P_LVL3, 35}, {P_NOISE, 12}, {P_NTYPE, N_PINK},
+        {P_CUTOFF, 60}, {P_RES, 30}, {P_ENVF, 35}, {P_ATK, 95}, {P_DEC, 100}, {P_SUS, 80}, {P_REL, 108},
+        {P_L1RATE, 22}, {P_L1DEPTH, 30}, {P_L1WAVE, LW_SINE}, {P_L1DEST, D_CUTOFF}, {P_CHAOS, 6},
+        {P_WET, 55}, {P_DMODE, DM_PARALLEL}, {P_T1, 96}, {P_T2, 110}, {P_FB1, 62}, {P_FB2, 58}, {P_DLTONE, 35},
+        {P_MOD1, 35}, {P_MOD2, 40}, {P_PAN1, -100}, {P_PAN2, 100}, {P_WIDTH, 95}, END}},
+    {"ACID TUNNEL", {
+        {P_GLIDE, 40}, {P_OSC1, -12}, {P_WAVE1, W_SAW}, {P_LVL1, 90}, {P_LVL2, 0}, {P_LVL3, 0}, {P_SUB, 40},
+        {P_CUTOFF, 38}, {P_RES, 82}, {P_ENVF, 75}, {P_ATK, 0}, {P_DEC, 55}, {P_SUS, 20}, {P_REL, 50},
+        {P_EDEST, D_RES}, {P_EAMT, 30}, {P_VELS, 60},
+        {P_DTYPE, X_FUZZ}, {P_DRIVE, 55}, {P_DTONE, 70}, {P_WET, 30}, {P_T1, 62}, {P_T2, 75}, {P_FB1, 55},
+        {P_FB2, 40}, {P_MOD1, 15}, {P_WIDTH, 70}, END}},
+    {"BROKEN CHORDS", {
+        {P_VOICES, 3}, {P_VSPREAD, 60}, {P_WAVE1, W_SQR}, {P_PW, 30}, {P_OSC2, 12}, {P_WAVE2, W_SQR}, {P_LVL3, 0},
+        {P_NOISE, 20}, {P_NTYPE, N_CRACKLE}, {P_CUTOFF, 92}, {P_RES, 35}, {P_ATK, 0}, {P_DEC, 70}, {P_SUS, 25}, {P_REL, 70},
+        {P_EDEST, D_PITCH}, {P_EAMT, -25}, {P_RRATE, 70}, {P_RDEPTH, 25}, {P_RSMOOTH, 30}, {P_RDEST, D_CUTOFF},
+        {P_DTYPE, X_CRUSH}, {P_DRIVE, 40}, {P_DMIX, 75}, {P_WET, 45}, {P_DMODE, DM_PARALLEL}, {P_T1, 58},
+        {P_T2, 72}, {P_FB1, 55}, {P_FB2, 50}, {P_XFB, 25}, {P_MOD1, 55}, {P_MOD2, 45}, {P_PAN1, -100}, {P_PAN2, 100},
+        {P_WIDTH, 90}, END}},
+    {"FM BELLS", {
+        {P_VOICES, 4}, {P_WAVE1, W_SINE}, {P_OSC2, 19}, {P_WAVE2, W_SINE}, {P_LVL1, 100}, {P_LVL2, 0}, {P_LVL3, 45},
+        {P_WAVE3, W_SINE}, {P_OSC3, 24}, {P_FM, 20}, {P_CUTOFF, 118}, {P_RES, 10}, {P_ATK, 0}, {P_DEC, 98}, {P_SUS, 15}, {P_DTYPE, X_SOFT}, {P_DRIVE, 35},
+        {P_REL, 100}, {P_EDEST, D_FM}, {P_EAMT, 70}, {P_VELS, 50}, {P_L2RATE, 60}, {P_L2DEPTH, 2}, {P_L2WAVE, LW_SINE},
+        {P_L2DEST, D_PITCH}, {P_WET, 40}, {P_DMODE, DM_PARALLEL}, {P_T1, 80}, {P_T2, 98}, {P_FB1, 55}, {P_FB2, 50},
+        {P_DLTONE, 60}, {P_PAN1, -70}, {P_PAN2, 70}, {P_WIDTH, 80}, END}},
 };
 #define AB_NFACTORY ((uint32_t)(sizeof AB_FACTORY / sizeof AB_FACTORY[0]))
 

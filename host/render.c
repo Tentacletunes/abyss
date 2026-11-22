@@ -46,6 +46,17 @@ static void run(FILE *f, double sec)
     }
 }
 static void note(int n, int on) { if (on) { ab.note = (uint8_t)n; ab.gate = 1; ab.trig++; } else ab.gate = 0; }
+/* VOICES 2..4: the next voice round, like the UI's (simplified) */
+static unsigned rr;
+static void pnote(int n, int on)
+{
+    unsigned k, nv = ab.p[P_VOICES] < 2 ? 1u : (unsigned)ab.p[P_VOICES];
+    if (nv == 1u) { note(n, on); return; }
+    if (!on) { for (k = 0; k < AB_NV; k++) if (ab.vnote[k] == n) ab.vgate[k] = 0; return; }
+    k = rr++ % nv;
+    ab.vnote[k] = (uint8_t)n; ab.vvel[k] = 100; ab.vgate[k] = 1; ab.vtrig[k]++; ab.vused |= (uint8_t)(1u << k);
+    ab.vlead = (uint8_t)k; ab.note = (uint8_t)n;
+}
 static void report(const char *name)
 {
     printf("%-22s peak %6d (%5.1f dBFS)  rms %5.1f dBFS\n", name, peak_all, 20 * __builtin_log10(peak_all / 32768.0 + 1e-9),
@@ -161,8 +172,15 @@ int main(int argc, char **argv)
         dsp_init();
         ab_preset_values((uint32_t)k, ab.p);
         snprintf(p, sizeof p, "%s/preset_%02d.wav", dir, k + 1); f = wav_open(p);
-        note(45, 1); run(f, 3.5); note(0, 0); run(f, 0.6);
-        for (i = 0; i < 4; i++) { note(seq[i], 1); run(f, 0.5); note(0, 0); run(f, 0.3); }
+        if (ab.p[P_VOICES] > 1) {                /* a chord, then the keys overlapping */
+            pnote(45, 1); pnote(52, 1); pnote(57, 1); run(f, 3.5); pnote(45, 0); pnote(52, 0); pnote(57, 0); run(f, 0.6);
+            for (i = 0; i < 4; i++) { pnote(seq[i], 1); run(f, 0.5); }
+            for (i = 0; i < 4; i++) pnote(seq[i], 0);
+            run(f, 0.3);
+        } else {
+            note(45, 1); run(f, 3.5); note(0, 0); run(f, 0.6);
+            for (i = 0; i < 4; i++) { note(seq[i], 1); run(f, 0.5); note(0, 0); run(f, 0.3); }
+        }
         run(f, 1.5);
         wav_close(f);
         snprintf(nm, sizeof nm, "P%02d %s", k + 1, AB_FACTORY[k].name); report(nm);
@@ -216,6 +234,38 @@ int main(int argc, char **argv)
     ab.vel = 100; note(45, 1);
     for (k = -8192; k < 8192; k += 512) { ab.bend = (int16_t)(k * 2 * 64 / 8192); run(f, 0.03); }
     note(0, 0); ab.bend = 0; run(f, 0.5); report("14d pitch bend +-2");
+    wav_close(f);
+
+    /* 15: v1.0 - VOICES, SPREAD, GLIDE, MIDI clock sync */
+    dsp_init();
+    snprintf(p, sizeof p, "%s/15_poly.wav", dir); f = wav_open(p);
+    ab.p[P_VOICES] = 4; ab.p[P_REL] = 90; ab.p[P_WET] = 30;
+    { static const int ch[3][4] = {{45, 52, 57, 60}, {43, 50, 55, 59}, {41, 48, 53, 57}};
+      for (i = 0; i < 3; i++) {
+          for (k = 0; k < 4; k++) { ab.vnote[k] = (uint8_t)ch[i][k]; ab.vvel[k] = 100; ab.vgate[k] = 1; ab.vtrig[k]++;
+                                    ab.vused |= (uint8_t)(1u << k); ab.vlead = (uint8_t)k; ab.note = ab.vnote[k]; run(f, 0.08); }
+          run(f, 0.8); for (k = 0; k < 4; k++) ab.vgate[k] = 0; run(f, 0.4);
+      } }
+    run(f, 1.0); report("15a 4 voices, chords");
+    ab.p[P_VSPREAD] = 100; ab.p[P_GLIDE] = 60;
+    for (k = 0; k < 4; k++) { ab.vnote[k] = (uint8_t)(48 + 7 * k); ab.vgate[k] = 1; ab.vtrig[k]++; }
+    run(f, 1.0); for (k = 0; k < 4; k++) ab.vnote[k] = (uint8_t)(36 + 5 * k); run(f, 1.5);
+    for (k = 0; k < 4; k++) ab.vgate[k] = 0; run(f, 1.0); report("15b spread, glide");
+    /* everything at the top, four voices: no overflow */
+    for (k = 0; k < P_COUNT; k++) if (k != P_MIDICH && k != P_CLOCK) ab.p[k] = AB_P[k].max;
+    ab.p[P_VOICES] = 4; ab.p[P_WIDTH] = 100;
+    for (k = 0; k < 4; k++) { ab.vnote[k] = (uint8_t)(30 + 20 * k); ab.vvel[k] = 127; ab.vgate[k] = 1; ab.vtrig[k]++; }
+    run(f, 3.0); for (k = 0; k < 4; k++) ab.vgate[k] = 0; run(f, 1.0); report("15c 4 voices, all at max");
+    wav_close(f);
+    dsp_init();
+    snprintf(p, sizeof p, "%s/15_clock.wav", dir); f = wav_open(p);
+    ab.p[P_CLOCK] = 1; ab.spq = AB_FS / 2u;     /* 120 BPM */
+    ab.p[P_L1DEPTH] = 100; ab.p[P_L1DEST] = D_CUTOFF; ab.p[P_L1WAVE] = LW_SQR; ab.p[P_L1RATE] = 8 * 8;   /* 1/4 */
+    ab.p[P_WET] = 50; ab.p[P_T1] = 64; ab.p[P_T2] = 100; ab.p[P_CUTOFF] = 70;
+    ab.drone = 1; run(f, 3.0); ab.spq = AB_FS / 3u; ab.clk_start++; run(f, 3.0);
+    for (k = 0; k < 128; k += 9) { ab.p[P_L1RATE] = (int16_t)k; ab.p[P_RRATE] = (int16_t)k; ab.p[P_T1] = (int16_t)k; run(f, 0.2); }
+    ab.spq = 132354u; ab.p[P_L1RATE] = 0; run(f, 0.5); ab.spq = 2000u; ab.p[P_L1RATE] = 127; run(f, 0.5);
+    ab.drone = 0; run(f, 1.0); report("15d clock sync 120 / 180 BPM");
     wav_close(f);
     return 0;
 }

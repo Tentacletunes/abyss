@@ -133,8 +133,12 @@ def ld_regions():
     return regs
 
 
+VERSION = "1.0"                                     # the release; the splash shows it with the commit
+
+
 def build_tag():
-    """what the splash shows: the date and the source's git commit (+ if changed since), e.g. "2026-11-18 13baf11" """
+    """what the splash shows: the version, the date and the source's git commit (+ if changed since), e.g.
+    "v1.0  2026-11-18 13baf11" """
     import datetime
     try:
         h = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=SRC, capture_output=True, text=True).stdout.strip()
@@ -142,7 +146,7 @@ def build_tag():
                                text=True).stdout.strip()
     except OSError:
         h, dirty = "", ""
-    return f"{datetime.date.today().isoformat()} {h or 'nogit'}{'+' if dirty else ''}"
+    return f"v{VERSION}  {datetime.date.today().isoformat()} {h or 'nogit'}{'+' if dirty else ''}"
 
 
 def build_app():

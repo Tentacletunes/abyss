@@ -1,4 +1,4 @@
-# ABYSS — architecture (Milestones 1–4)
+# ABYSS — architecture (v1.0)
 
 ## Hardware, as verified from source
 
@@ -98,7 +98,28 @@ block. Notes go through `ab.note / ab.gate / ab.trig`.
   hit the 4 s watchdog before the main loop counts as failed, three in a row → the updater. A boot log at 0xF2000
   is shown by holding REC at power-on.
 
+## v1.0: voices, clock, boot log
+
+* **Voices** (`abyss_dsp.c`): `ab_voice_t` holds what each voice owns — oscillator phases and last outputs, SVF
+  state and coefficient, envelope, VCA level, glided pitch. A block runs: the modulators; every voice's envelope;
+  the shared noise for the block (`ab_white`, `ab_nz`); each sounding voice's control values (`ab_vblk_t`) and
+  its samples added into `ab_sum` (`ab_voice_run`; an idle voice is skipped); then LEVEL, DRIVE, the delays and
+  WIDTH once on the sum, scaled by 1/√voices. MONO renders bit-identically to Milestone 6 (host test).
+  ENV MOD moves pitch, OSC 2, cutoff, resonance and FM per voice; its other targets follow the voice started
+  last (`ab.vlead`). The UI (`ui.c poly_on/poly_off`) gives a note the voice already on it, else the one let go
+  longest ago, else the oldest; changing VOICES (or loading a sound with a different count) lets every voice go.
+* **MIDI clock** (`ui.c midi_poll`): each F8 is timestamped by the MIDI queue; the tempo is the time across the
+  last 24 ticks (`ab.spq`, samples a quarter note, smoothed while steady), dropped after 0.6 s without ticks.
+  With CLOCK on (a setting, kept with MIDI CH and BEND) `ab_rate_inc` turns an LFO / RANDOM rate into a note
+  division and the delay times follow `AB_DDIV_U`. FA (START) restarts the LFO and RANDOM phases.
+* **Boot log**: the bytes of a start are gathered in `.noinit` RAM (`blog_ram`) and written in one flash write at
+  the 2 s healthy point, a fault, or the drop to UBOOT; a start the watchdog ends early leaves them in RAM and
+  the next start writes them first. (Was one flash write per byte, ~16 a start.)
+
 ## Measurements (fm1-emu, 240 MHz model)
+
+* v1.0, GHOST CHOIR with 4 voices held, both delays, clock sync, the UI busy: **~29 % CPU**, 856 µs worst
+  half-buffer of 2 900, 0 late halves. RAM 19 KiB variables; image 129 KiB.
 
 * Milestone 6, FEEDBACK STORM over TRS MIDI with CCs and bend, WIDTH 100 %: ~12 % CPU, 376 µs worst half-buffer,
   0 late halves.
@@ -116,5 +137,5 @@ The emulator is not cycle-exact; CPU figures must be re-measured on hardware (`c
 
 ## Known limits / not yet done
 
-* Mono voice (one note at a time); no MIDI out or clock sync.
+* No MIDI out (no clock out either); voices share one filter type and one set of envelope times.
 * Button roles follow Felucca's measured panel map; if a label is off on your unit, tell me.

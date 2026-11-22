@@ -164,7 +164,7 @@ static void pr_apply(uint32_t e)
 }
 
 /* ---- settings kept over a power-off: the sound last chosen (a factory or user preset, not its edits), MIDI
- * CHANNEL and BEND. Records of 8 bytes appended to one sector (0xF3000), the last valid one wins; the sector is
+ * CHANNEL, BEND and CLOCK SYNC. Records of 8 bytes appended to one sector (0xF3000), the last valid one wins; the sector is
  * erased only when full (or when it holds someone else's data), so the audio stops for an erase only rarely.
  * Written 3 s after the last change. */
 #define SET_SECT 0x000F3000u
@@ -197,6 +197,8 @@ static uint32_t set_boot(void)                 /* the entry to start with (0: fa
                 ab.p[P_MIDICH] = r[2];
             if (r[3] <= 24u)
                 ab.p[P_BEND] = r[3];
+            if (r[5] <= 1u && r[6] == (r[5] ^ 0xA5u))   /* (v1.0: MIDI CLOCK SYNC; older records: FF FF) */
+                ab.p[P_CLOCK] = r[5];
         }
     }
     return entry;                              /* full: erase before the next */
@@ -227,7 +229,9 @@ static void set_service(uint32_t entry)        /* main loop */
     r[2] = (uint8_t)ab.p[P_MIDICH];
     r[3] = (uint8_t)ab.p[P_BEND];
     r[4] = (uint8_t)(r[1] ^ r[2] ^ r[3] ^ 0x5Au);
-    r[5] = r[6] = r[7] = 0xFFu;
+    r[5] = (uint8_t)ab.p[P_CLOCK];
+    r[6] = (uint8_t)(r[5] ^ 0xA5u);
+    r[7] = 0xFFu;
     if (!fl_write(SET_SECT + set_at, r, 8))
         set_at += 8u;
 }
